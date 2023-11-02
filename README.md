@@ -13,7 +13,7 @@ To run Sc-TUSV-ext, two separate environments are required.
     ```
   Or, please follow the instructions as described in [https://bitbucket.org/schwarzlab/medicc2/src/master/](https://bitbucket.org/schwarzlab/medicc2/src/master/).
 
-- The second environment is for running the program with python 2.7. This will need the following commands:
+- The second environment is for running the program with python 2.7. This will need the following commands: <br>
     ```
     conda create -n sctusvext python=2.7
     conda activate sctusvext
