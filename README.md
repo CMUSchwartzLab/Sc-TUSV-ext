@@ -15,8 +15,11 @@ To run Sc-TUSV-ext, two separate environments are required.
 
 - The second environment is for running the program with python 2.7. This will need the following commands:
     ```
-    conda create -n sctusvext
+    conda create -n sctusvext python=2.7
     conda activate sctusvext
+    conda config --add channels conda-forge
+    conda config --add channels bioconda
+    conda install numpy pandas ete2 gurobipy graphviz biopython
     ```
   
   - `numpy`
