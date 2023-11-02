@@ -20,11 +20,13 @@ To run Sc-TUSV-ext, two separate environments are required.
     conda config --add channels conda-forge
     conda config --add channels bioconda
     ```
-Then, you will need the following packages in the  `sctusvext` environment.
-  - `numpy`
-  - `pandas`
-  - `ete2`
-  - `gurobipy`
-  - `graphviz`
-  - `biopython`
-  - `ete2`
+  Then, you will need the following packages in the  `sctusvext` environment.
+      - `numpy` <br>
+      - `pandas` <br>
+      - `ete2` <br>
+      - `gurobipy` <br>
+      - `graphviz` <br>
+      - `biopython` <br>
+      - `PyVCF`
+- To acquire Gurobi license, you can sign up as an academic user in the Gurobi website - [https://www.gurobi.com/downloads/end-user-license-agreement-academic/](https://www.gurobi.com/downloads/end-user-license-agreement-academic/). 
+  
