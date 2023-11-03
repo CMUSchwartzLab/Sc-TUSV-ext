@@ -66,4 +66,14 @@ Following inputs are mandatory:
 - `-c` : maximum copy number allowed for any breakpoint or segment on any node
 - `-t` : maximum number of coordinate-descent iterations
 - `-r` : number of random initializations of the coordinate-descent algorithm
--  
+- `-col` : binary flag whether to collapse the redundant nodes
+- `-sv_ub` : the number of subsampled SV breakpoints 
+- `-const` : number of total subsampled breakpoints and SNVs
+- `-m` : maximum time (seconds) in each coordinate descent iteration
+
+Optional parameters:
+- `-b` : binary flag for the regularization parameters to be set automatically
+- `-l` : lambda regularization parameter for weighting the phylogenetic cost
+- `-p` : number of processors to use (uses all the available cores by default)
+- `-s` : number of segments (in addition to those containing breakpoints) that are randomly kept (default keeps all the segments)
+  
