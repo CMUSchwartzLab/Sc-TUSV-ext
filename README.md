@@ -58,7 +58,7 @@ For example, if you wish to have 3 leaves in the tree, i.e. 5 clones, the follow
 In addition to this, we support the framework to run with a set of different settings accessible through the line 13 of `sctusvext.sh` file. The settings are the following:
 
 ```
-python sc-tusv-ext.py -i $input_folder -o "$output_folder/output_sctusvext" -c2cl "$output_folder/medicc2_output/clusters.tsv" -n $n_leaf -c 10 -t 2 -r 2 -p 8 -m 1000 -col -b -sv_ub 80 -C 120 
+python sc-tusv-ext.py -i $input_folder -o "output_sctusvext" -c2cl "clusters.tsv" -n 3 -c 10 -t 2 -r 2 -p 8 -m 1000 -col -b -sv_ub 80 -C 120 
 ```
 Following inputs are mandatory:
 - `-i` : input folder
