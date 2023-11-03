@@ -34,7 +34,7 @@ module load gurobi902  # Update with your gurobi module. If it is auto uploaded,
 rm -r "$output_folder/output_sctusvext"
 mkdir "$output_folder/output_sctusvext"
 # you can change the parameters according to your need.
-python sc-tusv-ext.py -i $input_folder -o "$output_folder/output_sctusvext" -c2cl "$output_folder/medicc2_output/clusters.tsv" -n $n_leaf -c 10 -t 2 -r 2 -p 8 -m 500 -col -b -sv_ub 80 -C 120 
+python sc-tusv-ext.py -i $input_folder -o "$output_folder/output_sctusvext" -c2cl "$output_folder/medicc2_output/clusters.tsv" -n $n_leaf -c 10 -t 2 -r 2 -p 8 -m 1000 -col -b -sv_ub 80 -C 120 
 conda /home/nbristy/miniconda3/bin/deactivate 
 
 
