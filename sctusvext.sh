@@ -3,10 +3,10 @@ conda init bash
 # Command to run Sc-TUSV-ext
 # ./sctusvext.sh ../SimGenomeSc/sims/test_code/patient1/sample ../SimGenomeSc/sims/test_code/patient1/outputs 
 #------------------
-echo "Command: ./sctusvext.sh input_folder output_folder number_of_clones"
+echo "Command: ./sctusvext.sh input_folder output_folder number_of_leaves"
 input_folder=$1
 output_folder=$2
-n_clone=$3
+n_leaf=$3
 #tusv_time=$3 # 1000/1500 is a good number for a small dataset with 100s of mutations.
 
 
@@ -25,7 +25,7 @@ conda /home/nbristy/miniconda3/bin/deactivate
 
 # run clustering
 rm "$output_folder/medicc2_output/clusters.tsv" "$output_folder/medicc2_output/cluster.png"
-python cluster.py "$output_folder/medicc2_output" "$input_folder/" $n_clone # clusters single cells using hierarchical clustering.
+python cluster.py "$output_folder/medicc2_output" "$input_folder/" $n_leaf # clusters single cells using hierarchical clustering.
 
 # runs sctusvext 
 source /home/nbristy/miniconda3/bin/activate tusv2 # you might need to change 'tusv2' with your Sc-TUSV-ext environment's name.
@@ -34,7 +34,7 @@ module load gurobi902  # Update with your gurobi module. If it is auto uploaded,
 rm -r "$output_folder/output_sctusvext"
 mkdir "$output_folder/output_sctusvext"
 # you can change the parameters according to your need.
-python sc-tusv-ext.py -i $input_folder -o "$output_folder/output_sctusvext" -c2cl "$output_folder/medicc2_output/clusters.tsv" -n $n_clone -c 10 -t 2 -r 2 -p 8 -m 500 -col -b -sv_ub 80 -C 120 
+python sc-tusv-ext.py -i $input_folder -o "$output_folder/output_sctusvext" -c2cl "$output_folder/medicc2_output/clusters.tsv" -n $n_leaf -c 10 -t 2 -r 2 -p 8 -m 500 -col -b -sv_ub 80 -C 120 
 conda /home/nbristy/miniconda3/bin/deactivate 
 
 
