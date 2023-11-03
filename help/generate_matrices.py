@@ -174,7 +174,7 @@ def get_mats(in_dir,c2cl, n, const=120, sv_ub=80):
     H = H[0:2*n-1, 0:l] # NISHAT changed H = H[0:m, 0:l] 
     
     F_phasing = compute_F_mode(F_phasing, sampleList, df_clones)
-    if not np.isnan(F_unsampled_phasing):
+    if not (isinstance(F_unsampled_phasing, float) and np.isnan(F_unsampled_phasing)):
         F_unsampled_phasing = compute_F_mode(F_unsampled_phasing, sampleList, df_clones)
     
     
