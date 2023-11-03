@@ -1,5 +1,8 @@
 # Sc-TUSV-ext
-Sc-TUSV-ext: Tumor evolutionary tree reconstruction from single-cell DNA-seq data of single nucleotide variants (SNV), copy number alterations (CNA) and structural variants (SV).
+
+Sc-TUSV-ext is an integer linear programming (ILP) based tumor clonal lineage inference method from Single-cell DNA sequencing data incorporating single nucleotide variants (SNV), copy number alterations (CNA) and structural variants (SV).
+
+
 <img width="1500" alt="image" src="https://github.com/CMUSchwartzLab/Sc-TUSV-ext/assets/38611728/c0383cf1-8022-43fb-a637-5ccca6244950">
 
 
