@@ -52,8 +52,18 @@ For example, if you wish to have 3 leaves in the tree, i.e. 5 clones, the follow
 ./sctusvext.sh example/sample/ example/sample_output 3
 ```
 
+---
 In addition to this, we support the framework to run with a set of different settings accessible through the line 13 of `sctusvext.sh` file. The settings are the following:
 
 ```
-python sc-tusv-ext.py -i $input_folder -o "$output_folder/output_sctusvext" -c2cl "$output_folder/medicc2_output/clusters.tsv" -n $n_leaf -c 10 -t 2 -r 2 -p 8 -m 500 -col -b -sv_ub 80 -C 120 
+python sc-tusv-ext.py -i $input_folder -o "$output_folder/output_sctusvext" -c2cl "$output_folder/medicc2_output/clusters.tsv" -n $n_leaf -c 10 -t 2 -r 2 -p 8 -m 1000 -col -b -sv_ub 80 -C 120 
 ```
+Following inputs are mandatory:
+- `-i` : input folder
+- `-o` : output folder
+- `-c2cl` : clone assignment file.
+- `-n` : number of leaves.
+- `-c` : maximum copy number allowed for any breakpoint or segment on any node
+- `-t` : maximum number of coordinate-descent iterations
+- `-r` : number of random initializations of the coordinate-descent algorithm
+-  
