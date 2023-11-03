@@ -1,5 +1,7 @@
 # Sc-TUSV-ext
 Sc-TUSV-ext: Tumor evolutionary tree reconstruction from single-cell DNA-seq data of single nucleotide variants (SNV), copy number alterations (CNA) and structural variants (SV).
+<img width="1337" alt="image" src="https://github.com/CMUSchwartzLab/Sc-TUSV-ext/assets/38611728/1c414f48-4404-4482-a634-906e5dd4bd87">
+
 
 ## Installation
 To run Sc-TUSV-ext, two separate environments are required. 
