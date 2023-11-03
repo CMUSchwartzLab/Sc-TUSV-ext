@@ -1,0 +1,47 @@
+<phyloxml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.phyloxml.org" xsi:schemaLocation="http://www.phyloxml.org http://www.phyloxml.org/1.10/phyloxml.xsd">
+  <phylogeny rooted="true">
+    <clade>
+      <branch_length>0</branch_length>
+      <clade>
+        <name>internal_1</name>
+        <branch_length>0.0</branch_length>
+        <clade>
+          <name>internal_4</name>
+          <branch_length>0.0</branch_length>
+          <clade>
+            <name>internal_2</name>
+            <branch_length>0.0</branch_length>
+            <clade>
+              <name>sample2</name>
+              <branch_length>2.0</branch_length>
+            </clade>
+            <clade>
+              <name>sample3</name>
+              <branch_length>0.0</branch_length>
+            </clade>
+          </clade>
+          <clade>
+            <name>internal_3</name>
+            <branch_length>0.0</branch_length>
+            <clade>
+              <name>sample4</name>
+              <branch_length>0.0</branch_length>
+            </clade>
+            <clade>
+              <name>sample5</name>
+              <branch_length>0.0</branch_length>
+            </clade>
+          </clade>
+        </clade>
+        <clade>
+          <name>sample1</name>
+          <branch_length>2.0</branch_length>
+        </clade>
+      </clade>
+      <clade>
+        <name>diploid</name>
+        <branch_length>0.0</branch_length>
+      </clade>
+    </clade>
+  </phylogeny>
+</phyloxml>
