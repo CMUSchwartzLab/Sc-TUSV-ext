@@ -30,3 +30,25 @@ To run Sc-TUSV-ext, two separate environments are required.
       - `PyVCF`
 - We use the Gurobi optimzer for Sc-TUSV-ext. To acquire Gurobi license, you can sign up as an academic user in the Gurobi website - [https://www.gurobi.com/downloads/end-user-license-agreement-academic/](https://www.gurobi.com/downloads/end-user-license-agreement-academic/). 
   
+## Inputs and Outputs
+### Input
+The input folder should contain the processed variant called scDNAseq files in VCF format. An example can be found in the `example/sample/` folder. 
+
+### Outputs
+- Medicc2 output folder: Output of the MEDICC2 method.
+- clusters.tsv: The clone assignments for the single-cells according to the MEDICC2 distances. This file is saved inside the MEDICC2 output folder.
+- T.dot: Output tree with the `clone assignments` in the nodes and  `phylogenetic cost/number of SNV and SV mapped` in the branches.
+- Z.tsv: Clone assignment matrix.
+- C.tsv: The estimated copy numbers of the clones.
+
+
+## Instructions for running
+We suggest to run and change the `sctusvext.sh` file as per user's need. The command to run the file:
+```
+./sctusvext.sh input_folder output_folder number_of_leaves
+```
+For example, if you wish to have 3 leaves in the tree, i.e. 5 clones, the following command should be run - 
+```
+./sctusvext.sh example/sample/ example/sample_output 3
+```
+
