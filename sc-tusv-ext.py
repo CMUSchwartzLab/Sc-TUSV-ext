@@ -118,7 +118,7 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
         ## NISHAT: adding line to save best Z. Take it after collapse after updating the collapse function for Zs.
         #np.savetxt(out_dir+'/Z_pre.tsv', Z, delimiter = '\t', fmt = '%.8f')
         C_sorted = np.matmul(Z,Cs[best_i]) # Nishat: Z*C is necessary because C's rows will be assigned according to the assumptions of the ilp, like the (2n-1) th row is root, which will not necessaily be true for C_obs. 
-        np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
+        #np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
 
         with open(out_dir + "/training_objective", 'w') as f:
             f.write(str(best_obj_val))
@@ -133,7 +133,7 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
         else:
         #    U_best, C_best, E_best, A_best, R_best, W_best, W_SV_best, W_SNV_best = Us[best_i], Cs[best_i], Es[best_i], As[best_i], Rs[best_i], Ws[best_i], W_SVs[best_i], W_SNVs[best_i]
             C_best, E_best, A_best, R_best,Z_best, W_best, W_SV_best, W_SNV_best = Cs[best_i], Es[best_i], As[best_i], Rs[best_i], Zs[best_i], Ws[best_i], W_SVs[best_i], W_SNVs[best_i] # NISHAT: REMOVED U
-        # NISHAT: UPDATING BLOCK
+        
         #min_node, min_dist, W_unsampled = snv_assign(C_best[:, -2*r:], Q_unsampled, A_best, E_best, U_best, F_unsampled_phasing_full, G_unsampled)
         #min_node, min_dist, W_unsampled = snv_assign(C_best[:, -2*r:], Q_unsampled, A_best, E_best, F_unsampled_phasing_full, G_unsampled) # NISHAT: REMOVED for single cell. next line.
         if not np.isnan(F_unsampled_phasing_full).any():
@@ -146,9 +146,9 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
             W_con = concatenate_W(W_SV_best, W_SV_unsampled, W_SNV_best, W_SNV_unsampled, sampled_sv_list_sort, unsampled_sv_list_sort, sampled_snv_list_sort, unsampled_snv_list_sort)
             writer = None #build_vcf_writer(C_phasing_full, C_best, org_indxs, G, Q, bp_attr, cv_attr, metadata_fname)
             B = create_binary_matrix(W_con, A_best)
-        else: # NISHAT: added
-            W_unsampled = None # NISHAT: added
-            W_con = W_best # NISHAT: added
+        else: 
+            W_unsampled = None 
+            W_con = W_best 
             writer = None
             B = create_binary_matrix(W_con, A_best)
         write_to_files(out_dir, l_g, C_best, E_best, R_best, Z_best, W_best, W_SV_best, W_SNV_best, W_unsampled, W_con, obj_vals[best_i], C_phasing_full, F_unsampled_phasing_full, org_indxs, writer, E_pre, R_pre, W_pre, Z_pre, B, A_best)
@@ -165,9 +165,9 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
             Z_pre = copy.deepcopy(Z)
 
             ## NISHAT: adding line to save best Z. Take it after collapse after updating the collapse function for Zs.
-            np.savetxt(out_dir+'/Z_pre.tsv', Z, delimiter = '\t', fmt = '%.8f')
+            #np.savetxt(out_dir+'/Z_pre.tsv', Z, delimiter = '\t', fmt = '%.8f')
             C_sorted = np.matmul(Z,C) # Nishat: Z*C is necessary because C's rows will be assigned according to the assumptions of the ilp, like the (2n-1) th row is root, which will not necessaily be true for C_obs. 
-            np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
+            #np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
 
             if collapse:
                 # NISHAT: Updating code for Z. May 29.
