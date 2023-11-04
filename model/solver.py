@@ -53,8 +53,7 @@ def get_UCE(F_phasing, Q, G, A, H, n, c_max, lamb1, max_iters, time_limit=None, 
     l_g_sample, r = Q.shape
     l,_ = G.shape
     g = l_g_sample - l
-    #C_obs = np.zeros((2*n-1, l+g+2*r))  ### NISHAT ADDED
-    #C_obs[:n,:] = F_phasing[:n,:]       ### NISHAT ADDED
+          
     C_obs = F_phasing
     
     prevC = C_obs
@@ -132,7 +131,7 @@ def get_U(F_phasing, C, n, R, W_node, l, only_leaf):
 
     return U
 
-# NISHAT: Function for estimating best Z based on C_obs and current C.
+# Function for estimating best Z based on C_obs and current C.
 
 def get_Z_sc(C_obs, C, n, l, only_leaf):
     N_cells, L = C_obs.shape  ### xf: L=l(+g)+2r depending on if SNVs are included
@@ -145,7 +144,7 @@ def get_Z_sc(C_obs, C, n, l, only_leaf):
         #mod.addConstr(gp.quicksum(U[i, :]) == 1.0, "Frequencies sum equals to 1")
         #if only_leaf:
         #    mod.addConstr(gp.quicksum(U[i, n: -1]) == 0.0, "Internal nodes have zero frequencies")
-    # NISHAT: added sum of Z's columns must be 1. 
+    # sum of Z's columns must be 1. 
     for i in xrange(0, N):
         mod.addConstr(sum(Z[j,i] for j in range(N_cells)) == 1)
     
@@ -198,21 +197,21 @@ def get_C_sc(C_obs, Z, Q, G, A, H, n, c_max, lamb1, set_root, time_limit=None):
     #m, _ = U.shape                                                                                                                         # Nishat: removed
     N = 2 * n - 1          # N: Number of clones/nodes, n: number of  leaves.
     mod = gp.Model('tusv')
-    N_cells = C_obs.shape[0] ### NISHAT: added, number of cells (May 21, 2023)
+    N_cells = C_obs.shape[0] 
     
     #Z = _get_gp_arr_bin_var(mod, N_cells, N) ### NISHAT: Added, cluster assignment. #mod.addVars(N_cell, N, vtype=GRB.BINARY, name="Z")  ### NISHAT: Clone assignment matrix of cells. Sum of each row is 1, such that each cell only belongs to one cluster/clone.
     C = _get_gp_arr_int_var(mod, N, l + g + 2*r, c_max)  ### xf: C becomes N*(l+2r)
     E = _get_gp_arr_bin_var(mod, N, N)
     A = _get_gp_arr_bin_var(mod, N, N)  # ancestry matrix
     R = _get_gp_arr_int_var(mod, N, N, c_max * 2*r)  # rho. cost across each edge ### xf: R also doubles because there is a cost for both alleles
-    #S = _get_gp_arr_cnt_var(mod, m, l+g, c_max)  # ess. bpf penalty for each bp in each sample                                             # Nishat: removed
+    #S = _get_gp_arr_cnt_var(mod, m, l+g, c_max)  # ess. bpf penalty for each bp in each sample                                             
     W = _get_gp_3D_arr_bin_var(mod, N, N, l+g)
     D = _get_gp_1D_arr_bin_var(mod, l+g)
     C_bin = _get_bin_rep(mod, C, c_max)
     Gam = _get_gp_3D_arr_int_var(mod, N, l+g, 2, c_max)
 
-    #F_seg = (F_phasing[:, l_g:-r] + F_phasing[:, -r:]).dot(np.transpose(Q))  # [m, l] mixed copy number of segment containing breakpoint   # Nishat: removed
-    #Pi = np_divide_0(F_phasing[:, :l_g], F_seg)  # [m, l] expected bpf (ratio of bp copy num to segment copy num)                          # Nishat: removed
+    #F_seg = (F_phasing[:, l_g:-r] + F_phasing[:, -r:]).dot(np.transpose(Q))  # [m, l] mixed copy number of segment containing breakpoint   
+    #Pi = np_divide_0(F_phasing[:, :l_g], F_seg)  # [m, l] expected bpf (ratio of bp copy num to segment copy num)                          
     print('Setting constraints for C')
     _set_copy_num_constraints(mod, C, n, l, g, r, N,set_root)
     _set_tree_constraints(mod, E, n)
@@ -225,8 +224,8 @@ def get_C_sc(C_obs, Z, Q, G, A, H, n, c_max, lamb1, set_root, time_limit=None):
     
     print('Setting objectives for C')
     
-    #mod.setObjective(_get_objective_sc(mod, C,C_obs, R, lamb1), gp.GRB.MINIMIZE)  # Nishat: changed for sc.
-    mod.setObjective(_get_objective_sc(mod, Z, C, C_obs, R, lamb1), gp.GRB.MINIMIZE)  # Nishat: changed for sc (May 21, 2023).  
+    
+    mod.setObjective(_get_objective_sc(mod, Z, C, C_obs, R, lamb1), gp.GRB.MINIMIZE)    
     
     
     mod.params.MIPFocus = 1
@@ -269,9 +268,9 @@ def _set_copy_num_constraints(mod, C, n, l, g, r,N,set_root):
         for b in xrange(0, l + g):
             mod.addConstr(C[2 * n - 2, b] >= 0)  # nishat: bp has copy number >=0 at root if dataset has no healthy cell
         for s in xrange(l + g, l + g + 2*r):
-            mod.addConstr(C[2 * n - 2, s] >= 1)  # nishat: seg has copy number >= 2 at root if dataset has no healthy cell ### xf: after phasing, both alleles have 1 copy
+            mod.addConstr(C[2 * n - 2, s] >= 1)  # nishat: seg has copy number >= 2 at root if dataset has no healthy cell 
         
-    # NISHAT: added C[:,:-2r]>=0
+    
     for i in xrange(0, N):
         if i == 2*n-2:
             continue
@@ -280,7 +279,7 @@ def _set_copy_num_constraints(mod, C, n, l, g, r,N,set_root):
 
 
     
-# NISHAT: added clone assignment constraints
+# clone assignment constraints
 def _set_clone_assignment_constraints(mod, Z):
     N_cells, N = Z.shape
     for i in xrange(0,N_cells):
@@ -345,15 +344,15 @@ def _set_cost_constraints(mod, R, C, E, n, l, g, r, c_max):
         for j in xrange(0, N):  # no cost if no edge exists
             for s in xrange(0, r):  # cost is difference between copy number  ### xf: change the copy numbers
                 mod.addConstr(X1[i, j, s] <= c_max * E[i, j])
-                #mod.addConstr(X1[i, j, s] >= C[i, s + l + g] - C[j, s + l + g] - (c_max) * (1 - E[i, j]))  ## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
-                #mod.addConstr(X1[i, j, s] >= -1 * (C[i, s + l + g] - C[j, s + l + g]) - (c_max) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
-                mod.addConstr(X1[i, j, s] >= C[i, s + l + g] - C[j, s + l + g] - (c_max+1) * (1 - E[i, j]))  ## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
-                mod.addConstr(X1[i, j, s] >= -1 * (C[i, s + l + g] - C[j, s + l + g]) - (c_max+1) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
+                #mod.addConstr(X1[i, j, s] >= C[i, s + l + g] - C[j, s + l + g] - (c_max) * (1 - E[i, j]))  
+                #mod.addConstr(X1[i, j, s] >= -1 * (C[i, s + l + g] - C[j, s + l + g]) - (c_max) * (1 - E[i, j]))
+                mod.addConstr(X1[i, j, s] >= C[i, s + l + g] - C[j, s + l + g] - (c_max+1) * (1 - E[i, j]))  
+                mod.addConstr(X1[i, j, s] >= -1 * (C[i, s + l + g] - C[j, s + l + g]) - (c_max+1) * (1 - E[i, j]))
                 mod.addConstr(X2[i, j, s] <= c_max * E[i, j])
-                #mod.addConstr(X2[i, j, s] >= C[i, s + l + g + r] - C[j, s + l + g + r] - (c_max) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
-                #mod.addConstr(X2[i, j, s] >= -1 * (C[i, s + l + g + r] - C[j, s + l + g + r]) - (c_max) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
-                mod.addConstr(X2[i, j, s] >= C[i, s + l + g + r] - C[j, s + l + g + r] - (c_max+1) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
-                mod.addConstr(X2[i, j, s] >= -1 * (C[i, s + l + g + r] - C[j, s + l + g + r]) - (c_max+1) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
+                #mod.addConstr(X2[i, j, s] >= C[i, s + l + g + r] - C[j, s + l + g + r] - (c_max) * (1 - E[i, j]))
+                #mod.addConstr(X2[i, j, s] >= -1 * (C[i, s + l + g + r] - C[j, s + l + g + r]) - (c_max) * (1 - E[i, j]))
+                mod.addConstr(X2[i, j, s] >= C[i, s + l + g + r] - C[j, s + l + g + r] - (c_max+1) * (1 - E[i, j]))
+                mod.addConstr(X2[i, j, s] >= -1 * (C[i, s + l + g + r] - C[j, s + l + g + r]) - (c_max+1) * (1 - E[i, j]))
             mod.addConstr(R[i, j] == (gp.quicksum(X1[i, j, :]) + gp.quicksum(X2[i, j, :])))
     
 
@@ -387,7 +386,7 @@ def _set_bp_gain_and_loss_constraints(mod, C_bin, C, W, E, G, n, l, g, Gam, c_ma
                 
 ### xf: _set_ancestry_condition_constraints removed 
 
-def _set_segment_copy_num_constraints(mod, Gam, C, Q, W, n, l, g, r, D, c_max):                        # Nishat: removed m from def _set_segment_copy_num_constraints(mod, Gam, C, Q, W, m, n, l, g, r, D, c_max):
+def _set_segment_copy_num_constraints(mod, Gam, C, Q, W, n, l, g, r, D, c_max):                        
     N = 2 * n - 1
     for k in xrange(0, N):
         for b in xrange(0, l+g):  # define copy num of segment containing breakpoint
