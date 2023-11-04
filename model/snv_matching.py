@@ -79,7 +79,7 @@ def snv_assign_sc_2(C_SNV_unsampled, Z, E, A):
     C_SNV_unsampled = (C_SNV_unsampled>0)*1
     
     # Assign clone's/node's SNV or SV according to majority voting of the cells in the clone/node.
-    C_SNV_unsampled_clone = np.array([ # NISHAT COMMENTED oct: We do not need to shuffle C's rows according to Z as we are mapping to the tree. C_est is already in the order of the tree. 
+    C_SNV_unsampled_clone = np.array([ # NISHAT: We need to shuffle C's rows according to Z as we are mapping to the tree.  
         np.apply_along_axis(lambda x: np.argmax(np.bincount(x)) if len(x) > 0 else np.nan, axis=0, 
                             arr=C_SNV_unsampled[np.argwhere(Z[:, i] == 1)])[0] for i in range(n)
                             ])  
