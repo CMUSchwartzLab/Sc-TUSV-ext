@@ -116,7 +116,7 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
                 best_i = i
 
         ## NISHAT: adding line to save best Z. Take it after collapse after updating the collapse function for Zs.
-        np.savetxt(out_dir+'/Z_pre.tsv', Z, delimiter = '\t', fmt = '%.8f')
+        #np.savetxt(out_dir+'/Z_pre.tsv', Z, delimiter = '\t', fmt = '%.8f')
         C_sorted = np.matmul(Z,Cs[best_i]) # Nishat: Z*C is necessary because C's rows will be assigned according to the assumptions of the ilp, like the (2n-1) th row is root, which will not necessaily be true for C_obs. 
         np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
 
