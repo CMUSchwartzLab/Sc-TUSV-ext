@@ -32,7 +32,7 @@ To run Sc-TUSV-ext, two separate environments are required.
       - `ete2` <br>
       - `gurobipy` <br>
       - `graphviz` <br>
-      - `biopython` <br>
+      - `biopython=1.7` <br>
       - `scipy` <br>
       - `PyVCF`
 - We use the Gurobi optimzer for Sc-TUSV-ext. To acquire Gurobi license, you can sign up as an academic user in the Gurobi website - [https://www.gurobi.com/downloads/end-user-license-agreement-academic/](https://www.gurobi.com/downloads/end-user-license-agreement-academic/). 
