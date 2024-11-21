@@ -64,7 +64,7 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, lamb2, num_restarts, num_cd_it
     Q_full, Q_unsampled_full, G, A, H, F_phasing_full, F_unsampled_phasing_full = check_valid_input(Q_full, Q_unsampled_full,G, A, H, F_phasing_full, F_unsampled_phasing_full)
     
     
-    df_clones.to_csv(out_dir+'clones.tsv',index=None,sep='\t')
+    #df_clones.to_csv(out_dir+'clones.tsv',index=None,sep='\t')
     np.savetxt(out_dir+"/C_input_full.csv",C_input_full, delimiter='\t', fmt='%s')
     np.savetxt(out_dir + "/C_info_phasing.csv", F_info_phasing, delimiter='\t', fmt='%s')
     if F_unsampled_info_phasing.size != 1:#all() != None: # NISHAT ADDED
