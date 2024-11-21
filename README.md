@@ -8,18 +8,7 @@ Sc-TUSV-ext is an integer linear programming (ILP) based tumor clonal lineage in
 
 
 ## Installation
-To run Sc-TUSV-ext, two separate environments are required. 
-- The first environment is for MEDICC2. You can create the medicc2 environment by running the following commands: <br>
-    ```
-    conda create -n medicc_env
-    
-    conda activate medicc_env
-    
-    conda install -c bioconda -c conda-forge medicc2
-    ```
-  Or, please follow the instructions as described in [https://bitbucket.org/schwarzlab/medicc2/src/master/](https://bitbucket.org/schwarzlab/medicc2/src/master/).
-
-- The second environment is for running the program with python 2.7. This will need the following commands: <br>
+To run Sc-TUSV-ext, a python 2.7 environment is required. This will need the following commands: <br>
     ```
     conda create -n sctusvext python=2.7
     conda activate sctusvext
@@ -42,8 +31,7 @@ To run Sc-TUSV-ext, two separate environments are required.
 The input folder should contain the processed variant called scDNAseq files in VCF format. An example can be found in the `example/sample/` folder. 
 
 ### Outputs
-- Medicc2 output folder: Output of the MEDICC2 method.
-- clusters.tsv: The clone assignments for the single-cells according to the MEDICC2 distances. This file is saved inside the MEDICC2 output folder.
+- pred_kmeans_clusters.tsv: The clone assignments for the single-cells according to the L1 distances.
 - T.dot: Output tree with the `clone assignments` in the nodes and  `phylogenetic cost/number of SNV and SV mapped` in the branches.
 - Z.tsv: Clone assignment matrix.
 - C.tsv: The estimated copy numbers of the clones.
@@ -52,11 +40,11 @@ The input folder should contain the processed variant called scDNAseq files in V
 ## Instructions for running
 We suggest to run and change the `sctusvext.sh` file as per user's need. The command to run the file:
 ```
-./sctusvext.sh input_folder output_folder number_of_leaves
+./sc-tusv-ext.sh input_folder output_folder number_of_leaves
 ```
 For example, if you wish to have 3 leaves in the tree, i.e. 5 clones, the following command should be run - 
 ```
-./sctusvext.sh example/sample/ example/sample_output 3
+./sc-tusv-ext.sh example/sample/ example/sample_output 3
 ```
 
 ---
@@ -77,6 +65,7 @@ Following inputs are mandatory:
 - `-sv_ub` : the number of subsampled SV breakpoints 
 - `-const` : number of total subsampled breakpoints and SNVs
 - `-m` : maximum time (seconds) in each coordinate descent iteration
+- `-x` : cell consensus percentage within each clone (default = 34)
 
 Optional parameters:
 - `-b` : binary flag for the regularization parameters to be set automatically
