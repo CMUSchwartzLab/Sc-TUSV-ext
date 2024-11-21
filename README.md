@@ -9,9 +9,10 @@ Sc-TUSV-ext is an integer linear programming (ILP) based tumor clonal lineage in
 
 ## Installation
 To run Sc-TUSV-ext, a python 2.7 environment is required. This will need the following commands: <br>
+
     ```
     conda create -n sctusvext python=2.7
-    
+
     conda activate sctusvext
     
     conda config --add channels conda-forge
