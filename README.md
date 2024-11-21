@@ -3,7 +3,6 @@
 Sc-TUSV-ext is an integer linear programming (ILP) based tumor clonal lineage inference method using single nucleotide variants (SNV), copy number alterations (CNA) and structural variants (SV) from single-cell DNA sequencing data.
 
 
-![image](https://github.com/CMUSchwartzLab/Sc-TUSV-ext/assets/38611728/722ef024-b9d9-44a8-9215-542245c3baac)
 <img width="1461" alt="image" src="https://github.com/user-attachments/assets/09cf7fb9-c5f9-4967-a63f-dad24f83cf4f">
 
 
