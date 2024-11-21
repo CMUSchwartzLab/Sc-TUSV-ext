@@ -625,9 +625,9 @@ def write_to_files(d, l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, o
     if W_SNV_UNSAMPLED is not None:
         np.savetxt(fnames[12], W_SNV_UNSAMPLED, delimiter='\t', fmt='%d')
     np.savetxt(fnames[13], W_con, delimiter='\t', fmt='%d')
-    np.savetxt(fnames[14], B, delimiter='\t', fmt='%d')
-    np.savetxt(fnames[15], A, delimiter='\t', fmt='%d')
-    np.savetxt(fnames[16], nodes_collapsed, delimiter='\t', fmt='%d')
+    np.savetxt(fnames[15], B, delimiter='\t', fmt='%d')
+    np.savetxt(fnames[16], A, delimiter='\t', fmt='%d')
+    np.savetxt(fnames[17], nodes_collapsed, delimiter='\t', fmt='%d')
     np.savetxt(fnames[5], np.array([obj_val]), delimiter = '\t', fmt = '%.8f')
     np.savetxt(fnames[8], F_phasing_full, delimiter='\t', fmt='%.8f')
     if not np.isnan(F_unsampled_phasing_full).any():
