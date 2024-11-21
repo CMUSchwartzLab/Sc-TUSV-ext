@@ -1,7 +1,0 @@
-digraph {
-	2 [label="Clone 1"]
-	1 [label="Clone 3"]
-	2 -> 1 [label=" 1/13"]
-	0 [label="Clone 2"]
-	2 -> 0 [label=" 0/11"]
-}
