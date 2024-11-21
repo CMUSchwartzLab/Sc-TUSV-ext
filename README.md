@@ -56,7 +56,6 @@ python sc-tusv-ext.py -i example/sample -o "example/sample_output/output_sctusve
 Following inputs are mandatory:
 - `-i` : input folder
 - `-o` : output folder
-- `-c2cl` : clone assignment file.
 - `-n` : number of leaves.
 - `-c` : maximum copy number allowed for any breakpoint or segment on any node
 - `-t` : maximum number of coordinate-descent iterations
@@ -65,11 +64,11 @@ Following inputs are mandatory:
 - `-sv_ub` : the number of subsampled SV breakpoints 
 - `-const` : number of total subsampled breakpoints and SNVs
 - `-m` : maximum time (seconds) in each coordinate descent iteration
-- `-x` : cell consensus percentage within each clone (default = 34)
 
 Optional parameters:
+- `-x` : cell consensus percentage within each clone (default = 34)
 - `-b` : binary flag for the regularization parameters to be set automatically
 - `-l` : lambda regularization parameter for weighting the phylogenetic cost
 - `-p` : number of processors to use (uses all the available cores by default)
 - `-s` : number of segments (in addition to those containing breakpoints) that are randomly kept (default keeps all the segments)
-  
+- `-c2cl` : clone assignment file (this file can be provided if cell-clone assignments are already known).
