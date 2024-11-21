@@ -158,7 +158,7 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, lamb2, num_restarts, num_cd_it
             W_con = W_best # NISHAT: added
             writer = None
             B = create_binary_matrix(W_con, A_best)
-            print(Z_best)
+            
         write_to_files(out_dir, l_g, C_best, E_best, R_best, Z_best, W_best, W_SV_best, W_SNV_best, W_unsampled, W_con, obj_vals[best_i], F_phasing_full, F_unsampled_phasing_full, org_indxs, writer, E_pre, R_pre, W_pre, Z_pre, B, A_best, nodes_collapsed)
     else:
         training_obj = np.zeros(n-1)
@@ -602,7 +602,6 @@ def write_to_files(d, l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, o
     l_g_2r = F_phasing_full.shape[1]
     r = (l_g_2r - l_g)/2
     n, _ = C.shape
-    print(nodes_collapsed)
     if org_indices is not None:
         org_indices_minor = [org_indices[i] + r for i in range(len(org_indices))]
         c_org_indices = [ i for i in xrange(0, l_g) ] + org_indices + org_indices_minor
