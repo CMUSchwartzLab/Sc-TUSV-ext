@@ -17,7 +17,7 @@ conda activate tusv2 # you might need to change 'tusv2' with your Sc-TUSV-ext en
 echo $CONDA_DEFAULT_ENV
 module load gurobi902  # Update with your gurobi module. If it is auto uploaded, you do not need this line.
 # you can change the parameters according to your need.
-python sc-tusv-ext.py -i $input_folder -o "$output_folder" -n $n_leaf -c 10 -t 5 -r 5 -p 8 -m 10 -col -b -sv_ub 80 -C 120 -x 34
+python sc-tusv-ext.py -i $input_folder -o "$output_folder" -n $n_leaf -c 10 -t 5 -r 5 -p 8 -m 1000 -col -b -sv_ub 80 -C 120 -x 34
 conda deactivate
 
 
