@@ -11,13 +11,13 @@ import argparse # for command line arguments
 import random
 import numpy as np
 import multiprocessing as mp
-
+import pickle
 from datetime import datetime
 from graphviz import Digraph
 from ete2 import Tree          # for creating phylogenetic trees for .xml output
 from Bio import Phylo          # for creating phylogenies to export as phylo .xml files
 from cStringIO import StringIO # for converting string to file (for creating initial phylo .xml)
-
+import pandas as pd
 sys.path.insert(0, 'model/')
 sys.path.insert(0, 'help/')
 import solver as sv
@@ -27,6 +27,7 @@ import printer as pt
 import vcf_help as vh
 import pickle
 from snv_matching import snv_assign_sc_2
+import cluster_l1 as cl
 
 # # # # # # # # # # # # #
 #   C O N S T A N T S   #
@@ -48,23 +49,26 @@ STR_DTYPE = 'S50'
 def main(argv):
     args = get_args(argv)
     write_readme(args['output_directory'], args)
-    unmix(args['input_directory'], args['output_directory'], args['cell_to_clone_file'],args['num_leaves'], args['c_max'], args['lambda1'], args['restart_iters'], args['cord_desc_iters'], args['processors'], args['time_limit'], args['metadata_file'], args['num_subsamples'], args['overide_lambdas'], args['constant'], args['sv_upperbound'], args['only_leaf'], args['collapse'], args['threshold'], args['multi_num_clones'],args['set_root'])
+    unmix(args['input_directory'], args['output_directory'], args['cell_to_clone_file'],args['num_leaves'], args['c_max'], args['lambda1'], args['lambda2'], args['restart_iters'], args['cord_desc_iters'], args['processors'], args['time_limit'], args['metadata_file'], args['num_subsamples'], args['overide_lambdas'], args['constant'], args['sv_upperbound'], args['only_leaf'], args['collapse'], args['threshold'], args['percentage'], args['multi_num_clones'],args['set_root'])
 
 
 #  input: num_seg_subsamples (int or None) number of segments to include in deconvolution. these are
 #           in addition to any segments contining an SV as thos are manditory for the SV. None is all segments
-def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, num_processors, time_limit, metadata_fname, \
-          num_seg_subsamples, should_overide_lambdas, const, sv_ub, only_leaf, collapse, threshold, multi_num_clones=False,set_root=False):
-    
+def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, lamb2, num_restarts, num_cd_iters, num_processors, time_limit, metadata_fname, \
+          num_seg_subsamples, should_overide_lambdas, const, sv_ub, only_leaf, collapse, threshold, percentage, multi_num_clones=False,set_root=False):
 
-    n, m, C_phasing_full, F_unsampled_phasing_full, Q_full, Q_unsampled_full, G, G_unsampled, A, H, bp_attr, cv_attr, F_info_phasing, \
-    F_unsampled_info_phasing, sampled_snv_list_sort, unsampled_snv_list_sort, sampled_sv_list_sort, unsampled_sv_list_sort, df_clones = gm.get_mats(in_dir, c2cl, n, const=const, sv_ub=sv_ub)
-    Q_full, Q_unsampled_full, G, A, H, C_phasing_full, F_unsampled_phasing_full = check_valid_input(Q_full, Q_unsampled_full,G, A, H, C_phasing_full, F_unsampled_phasing_full)
+    
+    n, m, F_phasing_full, F_unsampled_phasing_full,C_input_full, Q_full, Q_unsampled_full, G, G_unsampled, A, H, bp_attr, cv_attr, F_info_phasing, \
+    F_unsampled_info_phasing, sampled_snv_list_sort, unsampled_snv_list_sort, sampled_sv_list_sort, unsampled_sv_list_sort, df_clones = gm.get_mats(in_dir, c2cl, out_dir, n, percentage, const=const, sv_ub=sv_ub)
+    
+    Q_full, Q_unsampled_full, G, A, H, F_phasing_full, F_unsampled_phasing_full = check_valid_input(Q_full, Q_unsampled_full,G, A, H, F_phasing_full, F_unsampled_phasing_full)
+    
     
     df_clones.to_csv(out_dir+'clones.tsv',index=None,sep='\t')
-    np.savetxt(out_dir + "/C_info_phasing.csv", F_info_phasing, delimiter='\t', fmt='%s')
+    np.savetxt(out_dir+"/C_input_full.csv",C_input_full, delimiter='\t', fmt='%s')
+    np.savetxt(out_dir + "/F_info_phasing.csv", F_info_phasing, delimiter='\t', fmt='%s')
     if F_unsampled_info_phasing.size != 1:#all() != None: # NISHAT ADDED
-        np.savetxt(out_dir + "/C_unsampled_info_phasing.csv", F_unsampled_info_phasing, delimiter='\t', fmt='%s')
+        np.savetxt(out_dir + "/F_unsampled_info_phasing.csv", F_unsampled_info_phasing, delimiter='\t', fmt='%s')
     np.savetxt(out_dir + "/sampled_snv_list_sort.csv", sampled_snv_list_sort, delimiter='\t', fmt='%d')
     np.savetxt(out_dir + "/unsampled_snv_list_sort.csv", unsampled_snv_list_sort, delimiter='\t', fmt='%d')
     np.savetxt(out_dir + "/sampled_sv_list_sort.csv", sampled_sv_list_sort, delimiter='\t', fmt='%d')
@@ -72,14 +76,14 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
         np.savetxt(out_dir + "/unsampled_sv_list_sort.csv", unsampled_sv_list_sort, delimiter='\t', fmt='%d')
     
     if Q_unsampled_full.size!=1:#.all() != None:
-        C_phasing, Q, Q_unsampled, org_indxs = randomly_remove_segments(C_phasing_full, Q_full, Q_unsampled_full, num_seg_subsamples)
+        F_phasing, Q, Q_unsampled, org_indxs = randomly_remove_segments(F_phasing_full, Q_full, Q_unsampled_full, num_seg_subsamples)
     else:
-        C_phasing, Q, Q_unsampled, org_indxs = C_phasing_full, Q_full, None, None
-    np.savetxt(out_dir + '/C_phasing.tsv', C_phasing, delimiter='\t', fmt='%.8f')
+        F_phasing, Q, Q_unsampled, org_indxs = F_phasing_full, Q_full, None, None
+    np.savetxt(out_dir + '/F_phasing.tsv', F_phasing, delimiter='\t', fmt='%.8f')
     if not np.isnan(F_unsampled_phasing_full).any(): # NISHAT ADDED
-        np.savetxt(out_dir + '/C_unsampled_phasing_full.tsv', F_unsampled_phasing_full, delimiter='\t', fmt='%.8f')
+        np.savetxt(out_dir + '/F_unsampled_phasing_full.tsv', F_unsampled_phasing_full, delimiter='\t', fmt='%.8f')
     # replace lambda1 and lambda2 with input derived values if should_orveride_lamdas was specified
-    m = len(C_phasing)
+    m = len(F_phasing)
     l_g, r = Q.shape
 
     if Q_unsampled is not None:
@@ -90,12 +94,13 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
     if should_overide_lambdas:
 
         lamb1 = float(l_g + 2*r) / float(2*r) #Nishat removed: * float(m) / float(2 * (n-1) )/20
-        
+        lamb2 = 0#float(l_g + 2*r) / float(l_g)/2
     Us, Cs, Es, As, obj_vals, Rs, Zs, Ws, W_SVs, W_SNVs = [], [], [], [], [], [], [], [], [], [] ## NISHAT: Added Zs
     num_complete = 0
     if not multi_num_clones:
         for i in xrange(0, num_restarts):
-            C, E, A_, R, Z, W, W_SV, W_SNV, obj_val, err_msg = sv.get_UCE(C_phasing, Q, G, A, H, n, c_max, lamb1, num_cd_iters, time_limit, only_leaf,set_root) # NISHAT: REMOVED U
+        #    U, C, E, A_, R, W, W_SV, W_SNV, obj_val, err_msg = sv.get_UCE(F_phasing, Q, G, A, H, n, c_max, lamb1, lamb2, num_cd_iters, time_limit, only_leaf)
+            C, E, A_, R, Z, W, W_SV, W_SNV, obj_val, err_msg = sv.get_UCE(F_phasing, Q, G, A, H, n, c_max, lamb1, lamb2, num_cd_iters, time_limit, only_leaf,set_root) # NISHAT: REMOVED U
             printnow(str(i + 1) + ' of ' + str(num_restarts) + ' random restarts complete\n')
             #Us.append(U)
             Cs.append(C)
@@ -114,26 +119,28 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
             if obj_val < best_obj_val:
                 best_obj_val = obj_val
                 best_i = i
-
-        ## NISHAT: adding line to save best Z. Take it after collapse after updating the collapse function for Zs.
-        #np.savetxt(out_dir+'/Z_pre.tsv', Z, delimiter = '\t', fmt = '%.8f')
-        C_sorted = np.matmul(Z,Cs[best_i]) # Nishat: Z*C is necessary because C's rows will be assigned according to the assumptions of the ilp, like the (2n-1) th row is root, which will not necessaily be true for C_obs. 
-        #np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
-
-        with open(out_dir + "/training_objective", 'w') as f:
-            f.write(str(best_obj_val))
         E_pre = copy.deepcopy(Es[best_i])
         R_pre = copy.deepcopy(Rs[best_i])
         W_pre = copy.deepcopy(Ws[best_i])
         Z_pre = copy.deepcopy(Zs[best_i]) # NISHAT: added
+        
+        ## NISHAT: adding line to save best Z. Take it after collapse after updating the collapse function for Zs.
+        np.savetxt(out_dir+'/Z_pre.tsv', Z_pre, delimiter = '\t', fmt = '%.8f')
+        C_sorted = np.matmul(Z,Cs[best_i]) # Nishat: Z*C is necessary because C's rows will be assigned according to the assumptions of the ilp, like the (2n-1) th row is root, which will not necessaily be true for C_obs. 
+        np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
+
+        with open(out_dir + "/training_objective", 'w') as f:
+            f.write(str(best_obj_val))
+        
+        nodes_collapsed = []
         if collapse:
             # NISHAT Updating collapse with Z. May 29
         #    U_best, C_best, E_best, A_best, R_best, W_best, W_SV_best, W_SNV_best = collapse_nodes(Us[best_i], Cs[best_i], Es[best_i], As[best_i], Rs[best_i], Ws[best_i], W_SVs[best_i], W_SNVs[best_i], threshold,only_leaf)
-            C_best, E_best, A_best, R_best, Z_best, W_best, W_SV_best, W_SNV_best = collapse_nodes( Cs[best_i], Es[best_i], As[best_i], Rs[best_i], Zs[best_i], Ws[best_i], W_SVs[best_i], W_SNVs[best_i], threshold,only_leaf)
+            C_best, E_best, A_best, R_best, Z_best, W_best, W_SV_best, W_SNV_best, nodes_collapsed = collapse_nodes( Cs[best_i], Es[best_i], As[best_i], Rs[best_i], Zs[best_i], Ws[best_i], W_SVs[best_i], W_SNVs[best_i], threshold,only_leaf)
         else:
         #    U_best, C_best, E_best, A_best, R_best, W_best, W_SV_best, W_SNV_best = Us[best_i], Cs[best_i], Es[best_i], As[best_i], Rs[best_i], Ws[best_i], W_SVs[best_i], W_SNVs[best_i]
             C_best, E_best, A_best, R_best,Z_best, W_best, W_SV_best, W_SNV_best = Cs[best_i], Es[best_i], As[best_i], Rs[best_i], Zs[best_i], Ws[best_i], W_SVs[best_i], W_SNVs[best_i] # NISHAT: REMOVED U
-        
+        # NISHAT: UPDATING BLOCK
         #min_node, min_dist, W_unsampled = snv_assign(C_best[:, -2*r:], Q_unsampled, A_best, E_best, U_best, F_unsampled_phasing_full, G_unsampled)
         #min_node, min_dist, W_unsampled = snv_assign(C_best[:, -2*r:], Q_unsampled, A_best, E_best, F_unsampled_phasing_full, G_unsampled) # NISHAT: REMOVED for single cell. next line.
         if not np.isnan(F_unsampled_phasing_full).any():
@@ -144,19 +151,22 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
             W_SV_unsampled = W_unsampled[:,:len(unsampled_sv_list_sort)]
             W_SNV_unsampled = W_unsampled[:,len(unsampled_sv_list_sort):]
             W_con = concatenate_W(W_SV_best, W_SV_unsampled, W_SNV_best, W_SNV_unsampled, sampled_sv_list_sort, unsampled_sv_list_sort, sampled_snv_list_sort, unsampled_snv_list_sort)
-            writer = None #build_vcf_writer(C_phasing_full, C_best, org_indxs, G, Q, bp_attr, cv_attr, metadata_fname)
+            writer = None #build_vcf_writer(F_phasing_full, C_best, org_indxs, G, Q, bp_attr, cv_attr, metadata_fname)
             B = create_binary_matrix(W_con, A_best)
-        else: 
-            W_unsampled = None 
-            W_con = W_best 
+        else: # NISHAT: added
+            W_unsampled = None # NISHAT: added
+            W_con = W_best # NISHAT: added
             writer = None
             B = create_binary_matrix(W_con, A_best)
-        write_to_files(out_dir, l_g, C_best, E_best, R_best, Z_best, W_best, W_SV_best, W_SNV_best, W_unsampled, W_con, obj_vals[best_i], C_phasing_full, F_unsampled_phasing_full, org_indxs, writer, E_pre, R_pre, W_pre, Z_pre, B, A_best)
+            print(Z_best)
+        write_to_files(out_dir, l_g, C_best, E_best, R_best, Z_best, W_best, W_SV_best, W_SNV_best, W_unsampled, W_con, obj_vals[best_i], F_phasing_full, F_unsampled_phasing_full, org_indxs, writer, E_pre, R_pre, W_pre, Z_pre, B, A_best, nodes_collapsed)
     else:
         training_obj = np.zeros(n-1)
         for n_ in range(2, n+1):
-            C, E, A_, R, Z, W, W_SV, W_SNV, obj_val, err_msg = sv.get_UCE(C_phasing, Q, G, A, H, n_, c_max, lamb1,
-                                                                              num_cd_iters, time_limit, only_leaf) # NISHAT: REMOVED U
+            #U, C, E, A_, R, W, W_SV, W_SNV, obj_val, err_msg = sv.get_UCE(F_phasing, Q, G, A, H, n_, c_max, lamb1,
+            #                                                                  lamb2, num_cd_iters, time_limit, only_leaf)
+            C, E, A_, R, Z, W, W_SV, W_SNV, obj_val, err_msg = sv.get_UCE(F_phasing, Q, G, A, H, n_, c_max, lamb1,
+                                                                              lamb2, num_cd_iters, time_limit, only_leaf) # NISHAT: REMOVED U
             printnow(str(n_) + ' of ' + str(num_restarts) + ' num of clones restarts complete\n')
             training_obj[n_-2] = obj_val
             E_pre = copy.deepcopy(E)
@@ -165,14 +175,14 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
             Z_pre = copy.deepcopy(Z)
 
             ## NISHAT: adding line to save best Z. Take it after collapse after updating the collapse function for Zs.
-            #np.savetxt(out_dir+'/Z_pre.tsv', Z, delimiter = '\t', fmt = '%.8f')
+            np.savetxt(out_dir+'/Z_pre.tsv', Z_pre, delimiter = '\t', fmt = '%.8f')
             C_sorted = np.matmul(Z,C) # Nishat: Z*C is necessary because C's rows will be assigned according to the assumptions of the ilp, like the (2n-1) th row is root, which will not necessaily be true for C_obs. 
-            #np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
-
+            np.savetxt(out_dir+'/C_pre.tsv', C_sorted, delimiter = '\t', fmt = '%.8f')
+            nodes_collapsed = []
             if collapse:
                 # NISHAT: Updating code for Z. May 29.
                 #U, C, E, A_, R, W, W_SV, W_SNV = collapse_nodes(U,C,E,A_,R,W,W_SV, W_SNV,threshold,only_leaf)
-                C, E, A_, R, Z, W, W_SV, W_SNV = collapse_nodes(C,E,A_,R,Z,W,W_SV, W_SNV,threshold,only_leaf) # NISHAT: REMOVED U
+                C, E, A_, R, Z, W, W_SV, W_SNV, nodes_collapsed = collapse_nodes(C,E,A_,R,Z,W,W_SV, W_SNV,threshold,only_leaf) # NISHAT: REMOVED U
             # NISHAT: UPDATED snv_assign to snv_assign_sc
             #min_node, min_dist, W_SNV_unsampled = snv_assign(C[:, -2 * r:], Q_unsampled, A_, E, U,F_unsampled_phasing_full, G_unsampled)
             if not np.isnan(F_unsampled_phasing_full).any():
@@ -181,17 +191,17 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, num_restarts, num_cd_iters, nu
                 np.savetxt(out_dir + "/unsampled_SNV_assignment_dist.csv", min_dist, delimiter=',')
                 W_con, W_snv_con = concatenate_W(W_SV, W_SNV, W_SNV_unsampled, sampled_snv_list_sort,
                                                 unsampled_snv_list_sort)
-                writer = build_vcf_writer(C_phasing_full, C, org_indxs, G, Q, bp_attr, cv_attr, metadata_fname)
+                writer = build_vcf_writer(F_phasing_full, C, org_indxs, G, Q, bp_attr, cv_attr, metadata_fname)
                 B = create_binary_matrix(W_con, A)
             else: 
                 W_unsampled = None # NISHAT: added
                 W_con = W_best # NISHAT: added
-                writer = build_vcf_writer(C_phasing_full, C, org_indxs, G, Q, bp_attr, cv_attr, metadata_fname)
+                writer = build_vcf_writer(F_phasing_full, C, org_indxs, G, Q, bp_attr, cv_attr, metadata_fname)
                 B = create_binary_matrix(W_con, A_best)
             if not os.path.exists(out_dir + '/num_clone_' + str(n_)):
                 os.mkdir(out_dir + '/num_clone_' + str(n_))
-            write_to_files(out_dir + '/num_clone_' + str(n_) + '/', l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_unsampled,W_con, obj_val, C_phasing_full,
-                           F_unsampled_phasing_full, org_indxs, writer, E_pre, R_pre, W_pre, Z_pre, B, A_)
+            write_to_files(out_dir + '/num_clone_' + str(n_) + '/', l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_unsampled,W_con, obj_val, F_phasing_full,
+                           F_unsampled_phasing_full, org_indxs, writer, E_pre, R_pre, W_pre, Z_pre, B, A_, nodes_collapsed)
         np.savetxt(out_dir + '/training_obj_list.csv', training_obj, delimiter='\t')
         
 
@@ -215,8 +225,9 @@ def concatenate_W(W_SV_TUSV, W_SV_MATCHING, W_SNV_TUSV, W_SNV_MATCHING, sampled_
     g = g_sampled + g_unsampled
     W_con = np.zeros((n, l + g))
     W_snv_con = np.zeros((n, g))
-    if l_unsampled != 0:
-        W_con[:, sampled_sv_list_sort] = W_SV_TUSV
+    if l_unsampled != 0: 
+        if l_sampled != 0:
+            W_con[:, sampled_sv_list_sort] = W_SV_TUSV
         W_con[:, unsampled_sv_list_sort] = W_SV_MATCHING
     else:
         W_con[:, :l]= W_SV_TUSV
@@ -248,6 +259,21 @@ def W2tree(W_sv_total, W_snv_total, E):
 # collapse nodes
 #def collapse_nodes(U, C, E, A, R, W, W_SV, W_SNV, threshold=0.0, only_leaf=False):
 def collapse_nodes(C, E, A, R, Z, W, W_SV, W_SNV, threshold=0.0, only_leaf=False): # NISHAT: REMOVED U
+    '''
+    data_dict = {
+    'C': pd.DataFrame(C),
+    'E': pd.DataFrame(E),
+    'A': pd.DataFrame(A),
+    'R': pd.DataFrame(R),
+    'Z': pd.DataFrame(Z),
+    'W': pd.DataFrame(W),
+    'W_SV': pd.DataFrame(W_SV),
+    'W_SNV': pd.DataFrame(W_SNV),
+    }
+    
+    with open('matrices.pkl', 'wb') as f:
+        pickle.dump(data_dict, f)
+        '''
     # generate the tree
     tree = ModifyTree(E)
     if not only_leaf:
@@ -350,7 +376,7 @@ def collapse_nodes(C, E, A, R, Z, W, W_SV, W_SNV, threshold=0.0, only_leaf=False
     W_SNV_new = np.delete(W_SNV, remove_idx, axis=0)
     #print("collapse", U_new.shape, C_new.shape) # NISHAT: REMOVED U
     # return U_new, C_new, E_new, A_new, R_new, W_new, W_SV_new, W_SNV_new # NISHAT: REMOVED U
-    return C_new, E_new, A_new, R_new, Z_new, W_new, W_SV_new, W_SNV_new
+    return C_new, E_new, A_new, R_new, Z_new, W_new, W_SV_new, W_SNV_new, remove_idx
 
 
 class ModifyTree:
@@ -374,6 +400,7 @@ class ModifyTree:
                 raise('Cannot delete root node with more than one child!')
             child = self.tree[idx][0]
             Z[:, child] = np.logical_or(Z[:, child], Z[:, idx]).astype(int) # NISHAT added: adding root's cells to its only child.
+            Z[:, idx] = 0
             del self.cp_tree[child]
             del self.tree[idx]
         elif self.is_leaf(idx):
@@ -381,11 +408,13 @@ class ModifyTree:
             del self.cp_tree[idx]
             if self.num_children(parent) == 1:
                 del self.tree[parent]
-                parents_parent = self.cp_tree[parent] # NISHAT added: if idx is leaf and idx is only child of its parent, map idx to its parent's parent.
-                Z[:, parents_parent] = np.logical_or(Z[:, parents_parent], Z[:, idx]).astype(int) # NISHAT added: if idx is leaf and idx is only child of its parent, map idx to its parent's parent.
+                #parents_parent = self.cp_tree[parent] # NISHAT added: if idx is leaf and idx is only child of its parent, map idx to its parent's parent.
+                Z[:, parent] = np.logical_or(Z[:, parent], Z[:, idx]).astype(int) # NISHAT added: if idx is leaf and idx is only child of its parent, map idx to its parent's parent.
+                Z[:, idx] = 0
             else:
                 self.tree[parent].remove(idx)
                 Z[:, parent] = np.logical_or(Z[:, parent], Z[:, idx]).astype(int) # NISHAT added: if idx is leaf and idx is not the only child of its parent, map idx to its parent.
+                Z[:, idx] = 0
         else:
             parent = self.cp_tree[idx]
             children = self.tree[idx]
@@ -396,6 +425,7 @@ class ModifyTree:
                 self.E[parent, child] = 1
             del self.tree[idx]
             Z[:, parent] = np.logical_or(Z[:, parent], Z[:, idx]).astype(int) # NISHAT added: if idx is an internal node, map cells of idx to its parent.
+            Z[:, idx] = 0
         return Z
 
     def is_leaf(self, idx):
@@ -444,11 +474,11 @@ def _arg_val_to_str(v):
 # output: F (np.array) [m, l+r'] r' is reduced number of segments
 #         Q (np.array) [l, r']
 #         org_indices (list of int) for each segment in output, the index of where it is found in input F
-def randomly_remove_segments(C_phasing, Q, Q_unsampled, num_seg_subsamples):
+def randomly_remove_segments(F_phasing, Q, Q_unsampled, num_seg_subsamples):
     #print(Q)
     if num_seg_subsamples is None:
         
-        return C_phasing, Q, Q_unsampled, None
+        return F_phasing, Q, Q_unsampled, None
     l_g, r = Q.shape
     l_g, r = int(l_g), int(r)
     if Q_unsampled.all() != None:
@@ -467,7 +497,7 @@ def randomly_remove_segments(C_phasing, Q, Q_unsampled, num_seg_subsamples):
     num_seg_subsamples = min(num_seg_subsamples, len(non_bp_segs)) # ensure not removing more segs than we have
     if num_seg_subsamples == len(non_bp_segs):
         
-        return C_phasing, Q, Q_unsampled, None
+        return F_phasing, Q, Q_unsampled, None
 
     keeps = random_subset(non_bp_segs, num_seg_subsamples) # segments to keep
     keeps = set(sorted(bp_segs + keeps))
@@ -478,12 +508,12 @@ def randomly_remove_segments(C_phasing, Q, Q_unsampled, num_seg_subsamples):
     
     #F = np.delete(F, [ s + l_g for s in drops ], axis = 1)
     
-    C_phasing = np.delete(C_phasing, [ s + l_g + r for s in drops ], axis=1)
-    C_phasing = np.delete(C_phasing, [s + l_g for s in drops], axis=1)
+    F_phasing = np.delete(F_phasing, [ s + l_g + r for s in drops ], axis=1)
+    F_phasing = np.delete(F_phasing, [s + l_g for s in drops], axis=1)
     
     # F_info_phasing = np.delete(F_info_phasing, [ s + l_g + r for s in drops ], axis=1)
     # F_info_phasing = np.delete(F_info_phasing, [s + l_g for s in drops], axis=1)
-    return C_phasing, Q, Q_unsampled, [ s + l_g for s in keeps]
+    return F_phasing, Q, Q_unsampled, [ s + l_g for s in keeps]
 
 # returns a subset of lst containing k random elements
 def random_subset(lst, k):
@@ -491,7 +521,7 @@ def random_subset(lst, k):
     n = 0
     for item in lst:
         n += 1
-        if len(result) < k:                 # Nishat: this line ensures that C_phasing has atleast s segments as set in commmand line.
+        if len(result) < k:                 # Nishat: this line ensures that F_phasing has atleast s segments as set in commmand line.
             result.append(item)
         else:
             s = int(random.random() * n)    # Nishat:  This line takes random number of extra segments. This is why the matrix has a big copy number other than the set number.
@@ -518,9 +548,9 @@ def printnow(s):
 #         bp_attr (dict) key is breakpoint index. val is tuple (chrm (str), pos (int), extends_left (bool))
 #         cv_attr (dict) key (int) is segment index. val is tuple (chrm (str), bgn_pos (int), end_pos (int))
 # output: w (vcf_help.Writer) writer to be used to write entire .vcf file
-def build_vcf_writer(C_phasing_full, C, org_indices, G, Q, bp_attr, cv_attr, metadata_fname):
+def build_vcf_writer(F_phasing_full, C, org_indices, G, Q, bp_attr, cv_attr, metadata_fname):
     
-    m, l_g_2r = C_phasing_full.shape
+    m, l_g_2r = F_phasing_full.shape
     n, l_g_2rp = C.shape
     l, _ = G.shape
     g_2r = l_g_2r - l
@@ -543,7 +573,7 @@ def build_vcf_writer(C_phasing_full, C, org_indices, G, Q, bp_attr, cv_attr, met
         chrm, pos, ext_left = bp_attr[b]
         rec_id = bp_ids[b]
         mate_id = bp_ids[np.where(G[b, :])[0][0]]
-        fs = list(C_phasing_full[:, b])
+        fs = list(F_phasing_full[:, b])
         cps = list(C[:, b])
         if cps[0] < 0:
             cps = []
@@ -554,7 +584,7 @@ def build_vcf_writer(C_phasing_full, C, org_indices, G, Q, bp_attr, cv_attr, met
     for s in xrange(0, r):
         chrm, bgn, end = cv_attr[s]
         rec_id = cv_ids[s]
-        fs = list(C_phasing_full[:, s + l_g])
+        fs = list(F_phasing_full[:, s + l_g])
         cps = list(C[:, s + l_g])
         if cps[0] < 0:
             cps = []
@@ -567,12 +597,12 @@ def build_vcf_writer(C_phasing_full, C, org_indices, G, Q, bp_attr, cv_attr, met
 #        F_full (np.array) [m, l+r] mixed copy number for all l bps and r segments for each sample
 #        org_indices (list of int) for each segment in F, the index of where it is found in input F_all
 #        writer (vcf_help.Writer) writer to be used to write entire .vcf file
-#def write_to_files(d, l_g, U, C, E, R, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, obj_val, C_phasing_full, F_unsampled_phasing_full, org_indices, writer, E_pre, R_pre, W_pre, B, A):
-def write_to_files(d, l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, obj_val, C_phasing_full, F_unsampled_phasing_full, org_indices, writer, E_pre, R_pre, W_pre,Z_pre, B, A):
-    l_g_2r = C_phasing_full.shape[1]
+#def write_to_files(d, l_g, U, C, E, R, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, obj_val, F_phasing_full, F_unsampled_phasing_full, org_indices, writer, E_pre, R_pre, W_pre, B, A):
+def write_to_files(d, l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, obj_val, F_phasing_full, F_unsampled_phasing_full, org_indices, writer, E_pre, R_pre, W_pre,Z_pre, B, A, nodes_collapsed):
+    l_g_2r = F_phasing_full.shape[1]
     r = (l_g_2r - l_g)/2
     n, _ = C.shape
-
+    print(nodes_collapsed)
     if org_indices is not None:
         org_indices_minor = [org_indices[i] + r for i in range(len(org_indices))]
         c_org_indices = [ i for i in xrange(0, l_g) ] + org_indices + org_indices_minor
@@ -581,8 +611,8 @@ def write_to_files(d, l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, o
     else:
         C_out = C
 
-    #fnames = [ d + fname for fname in ['U.tsv', 'C.tsv', 'T.dot', 'F.tsv',  'W.tsv', 'obj_val.txt', 'unmixed.vcf', 'unmixed.xml','C_phasing_full.tsv','F_unsampled_phasing_full.tsv', 'W_SV.tsv', 'W_SNV_sampled.tsv', 'W_SNV_unsampled.tsv', 'W_CONCATENATE.tsv', 'T_pre.dot', 'B.tsv', 'A.tsv'] ]  # NISHAT: Removed for adding Z.
-    fnames = [ d + fname for fname in ['Z.tsv', 'C.tsv', 'T.dot', 'F.tsv',  'W.tsv', 'obj_val.txt', 'unmixed.vcf', 'unmixed.xml','C_phasing_full.tsv','F_unsampled_phasing_full.tsv', 'W_SV.tsv', 'W_SNV_sampled.tsv', 'W_SNV_unsampled.tsv', 'W_CONCATENATE.tsv', 'T_pre.dot', 'B.tsv', 'A.tsv'] ]
+    #fnames = [ d + fname for fname in ['U.tsv', 'C.tsv', 'T.dot', 'F.tsv',  'W.tsv', 'obj_val.txt', 'unmixed.vcf', 'unmixed.xml','F_phasing_full.tsv','F_unsampled_phasing_full.tsv', 'W_SV.tsv', 'W_SNV_sampled.tsv', 'W_SNV_unsampled.tsv', 'W_CONCATENATE.tsv', 'T_pre.dot', 'B.tsv', 'A.tsv'] ]  # NISHAT: Removed for adding Z.
+    fnames = [ d + fname for fname in ['Z.tsv', 'C.tsv', 'T.dot', 'F.tsv',  'W.tsv', 'obj_val.txt', 'unmixed.vcf', 'unmixed.xml','F_phasing_full.tsv','F_unsampled_phasing_full.tsv', 'W_SV.tsv', 'W_SNV_sampled.tsv', 'W_SNV_unsampled.tsv', 'W_CONCATENATE.tsv', 'T_pre.dot', 'B.tsv', 'A.tsv','nodes_collapsed.txt'] ]
     for fname in fnames:
         fm.touch(fname)
     #np.savetxt(fnames[0], U, delimiter = '\t', fmt = '%.8f') # NISHAT: removed for adding Z.
@@ -597,8 +627,9 @@ def write_to_files(d, l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, o
     np.savetxt(fnames[13], W_con, delimiter='\t', fmt='%d')
     np.savetxt(fnames[14], B, delimiter='\t', fmt='%d')
     np.savetxt(fnames[15], A, delimiter='\t', fmt='%d')
+    np.savetxt(fnames[16], nodes_collapsed, delimiter='\t', fmt='%d')
     np.savetxt(fnames[5], np.array([obj_val]), delimiter = '\t', fmt = '%.8f')
-    np.savetxt(fnames[8], C_phasing_full, delimiter='\t', fmt='%.8f')
+    np.savetxt(fnames[8], F_phasing_full, delimiter='\t', fmt='%.8f')
     if not np.isnan(F_unsampled_phasing_full).any():
         np.savetxt(fnames[9], F_unsampled_phasing_full, delimiter='\t', fmt='%.8f')
     #writer.write(open(fnames[6], 'w'))
@@ -692,7 +723,7 @@ def write_xml(fname, E, C, l_g, Z):
 #        A (np.array of int) [m, l] a_p,b is number of mated reads for breakpoint b in sample p
 #        H (np.array of int) [m, l] h_p,b is number of total reads for breakpoint b in sample p
 #  does: exits with error message if any of the input is not valid
-def check_valid_input(Q, Q_unsampled, G, A, H,C_phasing_full, F_unsampled_phasing_full):  ### A and H are empty matrices
+def check_valid_input(Q, Q_unsampled, G, A, H,F_phasing_full, F_unsampled_phasing_full):  ### A and H are empty matrices
     
     l_g, r = np.shape(Q)
     l, _ = np.shape(G)
@@ -718,7 +749,7 @@ def check_valid_input(Q, Q_unsampled, G, A, H,C_phasing_full, F_unsampled_phasin
     for p in xrange(0, m):
         for b in xrange(0, l):
             raiseif(A[p, b] < 0 or A[p, b] > H[p, b], A_msg)
-    return Q, Q_unsampled, G, A, H, C_phasing_full, F_unsampled_phasing_full
+    return Q, Q_unsampled, G, A, H, F_phasing_full, F_unsampled_phasing_full
 
 # raises exception if boolean is true
 def raiseif(should_raise, msg):
@@ -735,7 +766,7 @@ def get_args(argv):
     parser = argparse.ArgumentParser(prog = 'tusv.py', description = "unmixes mixed copy numbers for breakpoints and segments and infers phylogeny with various phylogenetic constraints")
     parser.add_argument('-i', '--input_directory', required = True, type = lambda x: fm.valid_dir_ext(parser, x, '.vcf'), help = 'directory containing a .vcf for each sample from a single patient')
     parser.add_argument('-o', '--output_directory', required = True, type = lambda x: fm.valid_dir(parser, x), help = 'empty directory for output U.tsv, C.tsv, and T.dot files to go')
-    parser.add_argument('-c2cl', '--cell_to_clone_file', required = True, type = lambda x: fm.is_valid_file(parser,x), help = 'mapping of cells to clones after medicc2 clustering (tsv format)')# nishat added for averaging cnvs, snvs, svs
+    #parser.add_argument('-c2cl', '--cell_to_clone_file', required = True, type = lambda x: fm.is_valid_file(parser,x), help = 'mapping of cells to clones after medicc2 clustering (tsv format)')# nishat added for averaging cnvs, snvs, svs
     set_non_dir_args(parser)
     return vars(parser.parse_args(argv))
 
@@ -743,7 +774,10 @@ def set_non_dir_args(parser):
     parser.add_argument('-n', '--num_leaves', required = True, type = lambda x: fm.valid_int_in_range(parser, x, 2, MAX_NUM_LEAVES), help = 'number of leaves for inferred binary tree. total number of nodes will be 2*n-1')
     parser.add_argument('-c', '--c_max', required = True, type = lambda x: fm.valid_int_in_range(parser, x, 1, MAX_COPY_NUM), help = 'maximum allowed copy number at any node in the tree')
     parser.add_argument('-l', '--lambda1', default = 0.25, type = lambda x: fm.valid_float_above(parser, x, 0.0), help = 'regularization term to weight total tree cost against unmixing error in objective function. setting as 0.0 will put no tree cost constraint. setting as 1.0 will equally consider tree cost and unmixing error.')
-    #parser.add_argument('-a', '--lambda2', default = 6.25, type = lambda x: fm.valid_float_above(parser, x, 0.0), help = 'regularization term to weight error in inferred cell assignments to clones')
+    parser.add_argument('-c2cl', '--cell_to_clone_file', default = None, type = lambda x: fm.is_valid_file(parser,x), help = 'mapping of cells to clones after clustering (tsv format)')# not required if previous clustering is not available. ScTUSVext will cluster using k-means on l1 distances of the variants. 
+    
+    parser.add_argument('-x', '--percentage', default = 34, type = lambda x: fm.valid_int_in_range(parser, x, 0, 100), help = 'Confidence score of single-cell SNVs within clusters. Set it to a value greater than 0, it will mean if more than percentage% cell has an snv or sv in a cluster, its clone representative will have a 1 in that snv/sv position. setting this to 100 requires all the cells to have a certain snv/sv in the position for the cluster representative to be 1.')
+    parser.add_argument('-a', '--lambda2', default = 6.25, type = lambda x: fm.valid_float_above(parser, x, 0.0), help = 'regularization term to weight error in inferred cell assignments to clones')
     #parser.add_argument('-a', '--lambda2', default = 6.25, type = lambda x: fm.valid_float_above(parser, x, 0.0), help = 'regularization term to weight error in inferred ratio between copy number of a breakpoint and the copy number of the segment originally containing the position of breakpoint')
     parser.add_argument('-t', '--cord_desc_iters', required = True, type = lambda x: fm.valid_int_in_range(parser, x, 1, MAX_CORD_DESC_ITERS), help = 'maximum number of cordinate descent iterations for each initialization of U')
     parser.add_argument('-r', '--restart_iters', required = True, type = lambda x: fm.valid_int_in_range(parser, x, 1, MAX_RESTART_ITERS), help = 'number of random initializations for picking usage matrix U')

@@ -47,13 +47,14 @@ MAX_SOLVER_ITERS = 5000
 #  notes: l (int) is number of breakpoints depicting structural variants. r (int) is number of copy number regions, 2r means we phase it for allelic copy numbers,
 #         g (int) is number of single nucleotide variants.
 
-def get_UCE(F_phasing, Q, G, A, H, n, c_max, lamb1, max_iters, time_limit=None, only_leaf=False,set_root=False):
+def get_UCE(F_phasing, Q, G, A, H, n, c_max, lamb1, lamb2, max_iters, time_limit=None, only_leaf=False,set_root=False):
     np.random.seed()  # sets seed for running on multiple processors
     m = len(F_phasing)
     l_g_sample, r = Q.shape
     l,_ = G.shape
     g = l_g_sample - l
-          
+    #C_obs = np.zeros((2*n-1, l+g+2*r))  ### NISHAT ADDED
+    #C_obs[:n,:] = F_phasing[:n,:]       ### NISHAT ADDED
     C_obs = F_phasing
     
     prevC = C_obs
@@ -64,8 +65,8 @@ def get_UCE(F_phasing, Q, G, A, H, n, c_max, lamb1, max_iters, time_limit=None, 
         if i == 0:
             C = gen_C_sc(C_obs, N_cells, N)
         
-        Z = get_Z_sc(C_obs, C, n, l, only_leaf)
-        obj_val, C, E, A, R, Z, W, W_sv, W_snv, err_msg = get_C_sc(C_obs,Z, Q, G, A, H, n, c_max, lamb1,set_root,time_limit)
+        Z = get_Z_sc(C_obs, C, n, l, only_leaf, lamb2)
+        obj_val, C, E, A, R, Z, W, W_sv, W_snv, err_msg = get_C_sc(C_obs,Z, Q, G, A, H, n, c_max, lamb1, lamb2,set_root,time_limit)
 
         # handle errors
         if err_msg != None:
@@ -82,7 +83,7 @@ def get_UCE(F_phasing, Q, G, A, H, n, c_max, lamb1, max_iters, time_limit=None, 
         if i == 0:
             C = gen_C_sc(C_obs, N_cells, N)
         else: 
-            obj_val, C, E, A, R, Z, W, W_sv, W_snv, err_msg = get_C_sc(C_obs,Z, Q, G, A, H, n, c_max, lamb1, time_limit)
+            obj_val, C, E, A, R, Z, W, W_sv, W_snv, err_msg = get_C_sc(C_obs,Z, Q, G, A, H, n, c_max, lamb1, lamb2, time_limit)
         Z = get_Z_sc(C_obs, C, n, R, W, l, only_leaf ,lamb2)
         # handle errors
         if err_msg != None:
@@ -131,9 +132,9 @@ def get_U(F_phasing, C, n, R, W_node, l, only_leaf):
 
     return U
 
-# Function for estimating best Z based on C_obs and current C.
+# NISHAT: Function for estimating best Z based on C_obs and current C.
 
-def get_Z_sc(C_obs, C, n, l, only_leaf):
+def get_Z_sc(C_obs, C, n, l, only_leaf, lamb2):
     N_cells, L = C_obs.shape  ### xf: L=l(+g)+2r depending on if SNVs are included
     N = 2 * n - 1
     mod = gp.Model('tusv')
@@ -144,7 +145,7 @@ def get_Z_sc(C_obs, C, n, l, only_leaf):
         #mod.addConstr(gp.quicksum(U[i, :]) == 1.0, "Frequencies sum equals to 1")
         #if only_leaf:
         #    mod.addConstr(gp.quicksum(U[i, n: -1]) == 0.0, "Internal nodes have zero frequencies")
-    # sum of Z's columns must be 1. 
+    # NISHAT: added sum of Z's columns must be 1. 
     for i in xrange(0, N):
         mod.addConstr(sum(Z[j,i] for j in range(N_cells)) == 1)
     
@@ -161,7 +162,7 @@ def get_Z_sc(C_obs, C, n, l, only_leaf):
     #            print('------penalty-----------', lamb2*_get_abs(mod, C_obs[cell_indices[j],:] - C_obs[cell_indices[k],:]))
     #            sums.append(lamb2*_get_abs(mod, C_obs[cell_indices[j],:] - C_obs[cell_indices[k],:]))
 
-    print('Setting objective in get_Z_sc')
+    print('Setting objective')
     
     mod.setObjective(gp.quicksum(sums), gp.GRB.MINIMIZE)
     mod.optimize()
@@ -171,6 +172,76 @@ def get_Z_sc(C_obs, C, n, l, only_leaf):
     print(Z)
     return Z
 
+#  input: F (np.array of float) [m, l+g+2r] mixed copy number f_p,s of mutation s in sample p
+#         U (np.array of float) [m, 2n-1] 0 <= u_p,k <= 1. percent of sample p made by clone k
+#         Q (np.array of 0 or 1) [l+g, r] q_b,s == 1 if breakpoint b is in segment s. 0 otherwise
+#         G (np.array of 0 or 1) [l, l] g_s,t == 1 if breakpoints s and t are mates. 0 otherwise
+#         A (np.array of int) [m, l] a_p,b is number of mated reads for breakpoint b in sample p
+#         H (np.array of int) [m, l] h_p,b is number of total reads for breakpoint b in sample p
+#         n (int) number of leaves in phylogeny. 2n-1 is total number of nodes
+#         c_max (int) maximum allowed copy number for any element in output C
+#         lamb1 (float) regularization term to weight total tree cost against unmixing error
+#         lamb2 (float) regularization term to weight breakpoint frequency error
+#         time_limit (int) maximum number of seconds the solver will run
+# output: obj_val (float) objective value of solution
+#         C (np.array of int) [2n-1, l+g+2r] int copy number c_k,s of mutation s in clone k
+#         E (np.array of int) [2n-1, 2n-1] e_i,j == 1 iff edge (i,j) is in tree. 0 otherwise
+#         R (np.array of int) [2n-1, 2n-1] cost of each edge in the tree
+#         W_all (np.array of int) [2n-1, 2n-1] number of breakpoints appearing along each edge in tree
+#         err_msg (None or str) None if no error occurs. str with error message if one does
+#  notes: l (int) is number of breakpoints. g (int) is the number of single nucleotide variants. r (int) is number of copy number regions
+def get_C(F_phasing, U, Q, G, A, H, n, c_max, lamb1, lamb2, time_limit=None):
+    l_g, r = Q.shape
+    l, _ = G.shape
+    g = l_g - l
+    m, _ = U.shape
+    N = 2 * n - 1
+    mod = gp.Model('tusv')
+
+    C = _get_gp_arr_int_var(mod, N, l + g + 2*r, c_max)  ### xf: C becomes N*(l+2r)
+    E = _get_gp_arr_bin_var(mod, N, N)
+    A = _get_gp_arr_bin_var(mod, N, N)  # ancestry matrix
+    R = _get_gp_arr_int_var(mod, N, N, c_max * 2*r)  # rho. cost across each edge ### xf: R also doubles because there is a cost for both alleles
+    S = _get_gp_arr_cnt_var(mod, m, l+g, c_max)  # ess. bpf penalty for each bp in each sample
+    W = _get_gp_3D_arr_bin_var(mod, N, N, l+g)
+    D = _get_gp_1D_arr_bin_var(mod, l+g)
+    C_bin = _get_bin_rep(mod, C, c_max)
+    Gam = _get_gp_3D_arr_int_var(mod, N, l+g, 2, c_max)
+
+    F_seg = (F_phasing[:, l_g:-r] + F_phasing[:, -r:]).dot(np.transpose(Q))  # [m, l] mixed copy number of segment containing breakpoint
+    Pi = np_divide_0(F_phasing[:, :l_g], F_seg)  # [m, l] expected bpf (ratio of bp copy num to segment copy num)
+
+    _set_copy_num_constraints(mod, C, n, l, g, r)
+    _set_tree_constraints(mod, E, n)
+    _set_ancestry_constraints(mod, A, E, N)
+    _set_cost_constraints(mod, R, C, E, n, l, g, r, c_max)
+    _set_bp_gain_and_loss_constraints(mod, C_bin, C, W, E, G, n, l, g, Gam, c_max, D)
+    _set_segment_copy_num_constraints(mod, Gam, C, Q, W, n, l, g, r, D, c_max)
+    _set_bpf_penalty(mod, S, Pi, U, C, Gam)
+
+    mod.setObjective(_get_objective(mod, F_phasing, U, C, R, S, lamb1, lamb2), gp.GRB.MINIMIZE)
+
+    mod.params.MIPFocus = 1
+    if time_limit != None:
+        mod.params.TimeLimit = time_limit
+
+    mod.optimize()
+
+    C = _as_solved(C)
+    E = _as_solved(E)
+    R = _as_solved(R)
+    A = _as_solved(A)
+    W_node_sv = np.zeros((N, l), dtype=int)
+    W_node_snv = np.zeros((N, g), dtype=int)
+    W_node = np.zeros((N, l+g), dtype=int)
+    for j in xrange(0, N):
+        for b in xrange(0, l):
+            W_node_sv[j, b] = sum([int(W[i, j, b].X) for i in xrange(0, N)])
+        for b in xrange(0, g):
+            W_node_snv[j, b] = sum([int(W[i, j, l+b].X) for i in xrange(0, N)])
+        for b in xrange(0, l+g):
+            W_node[j, b] = sum([int(W[i, j, b].X) for i in xrange(0, N)])
+    return mod.objVal, C, E, A, R, W_node, W_node_sv, W_node_snv, None
 
 
 #  input: F (np.array of float) [m, l+g+2r] mixed copy number f_p,s of mutation s in sample p
@@ -182,6 +253,7 @@ def get_Z_sc(C_obs, C, n, l, only_leaf):
 #         n (int) number of leaves in phylogeny. 2n-1 is total number of nodes
 #         c_max (int) maximum allowed copy number for any element in output C
 #         lamb1 (float) regularization term to weight total tree cost against unmixing error
+#         lamb2 (float) regularization term to weight breakpoint frequency error
 #         time_limit (int) maximum number of seconds the solver will run
 # output: obj_val (float) objective value of solution
 #         C (np.array of int) [2n-1, l+g+2r] int copy number c_k,s of mutation s in clone k
@@ -190,28 +262,28 @@ def get_Z_sc(C_obs, C, n, l, only_leaf):
 #         W_all (np.array of int) [2n-1, 2n-1] number of breakpoints appearing along each edge in tree
 #         err_msg (None or str) None if no error occurs. str with error message if one does
 #  notes: l (int) is number of breakpoints. g (int) is the number of single nucleotide variants. r (int) is number of copy number regions
-def get_C_sc(C_obs, Z, Q, G, A, H, n, c_max, lamb1, set_root, time_limit=None):
+def get_C_sc(C_obs, Z, Q, G, A, H, n, c_max, lamb1, lamb2,set_root, time_limit=None):
     l_g, r = Q.shape
     l, _ = G.shape
     g = l_g - l
     #m, _ = U.shape                                                                                                                         # Nishat: removed
     N = 2 * n - 1          # N: Number of clones/nodes, n: number of  leaves.
     mod = gp.Model('tusv')
-    N_cells = C_obs.shape[0] 
+    N_cells = C_obs.shape[0] ### NISHAT: added, number of cells (May 21, 2023)
     
     #Z = _get_gp_arr_bin_var(mod, N_cells, N) ### NISHAT: Added, cluster assignment. #mod.addVars(N_cell, N, vtype=GRB.BINARY, name="Z")  ### NISHAT: Clone assignment matrix of cells. Sum of each row is 1, such that each cell only belongs to one cluster/clone.
     C = _get_gp_arr_int_var(mod, N, l + g + 2*r, c_max)  ### xf: C becomes N*(l+2r)
     E = _get_gp_arr_bin_var(mod, N, N)
     A = _get_gp_arr_bin_var(mod, N, N)  # ancestry matrix
     R = _get_gp_arr_int_var(mod, N, N, c_max * 2*r)  # rho. cost across each edge ### xf: R also doubles because there is a cost for both alleles
-    #S = _get_gp_arr_cnt_var(mod, m, l+g, c_max)  # ess. bpf penalty for each bp in each sample                                             
+    #S = _get_gp_arr_cnt_var(mod, m, l+g, c_max)  # ess. bpf penalty for each bp in each sample                                             # Nishat: removed
     W = _get_gp_3D_arr_bin_var(mod, N, N, l+g)
     D = _get_gp_1D_arr_bin_var(mod, l+g)
     C_bin = _get_bin_rep(mod, C, c_max)
     Gam = _get_gp_3D_arr_int_var(mod, N, l+g, 2, c_max)
 
-    #F_seg = (F_phasing[:, l_g:-r] + F_phasing[:, -r:]).dot(np.transpose(Q))  # [m, l] mixed copy number of segment containing breakpoint   
-    #Pi = np_divide_0(F_phasing[:, :l_g], F_seg)  # [m, l] expected bpf (ratio of bp copy num to segment copy num)                          
+    #F_seg = (F_phasing[:, l_g:-r] + F_phasing[:, -r:]).dot(np.transpose(Q))  # [m, l] mixed copy number of segment containing breakpoint   # Nishat: removed
+    #Pi = np_divide_0(F_phasing[:, :l_g], F_seg)  # [m, l] expected bpf (ratio of bp copy num to segment copy num)                          # Nishat: removed
     print('Setting constraints for C')
     _set_copy_num_constraints(mod, C, n, l, g, r, N,set_root)
     _set_tree_constraints(mod, E, n)
@@ -224,8 +296,8 @@ def get_C_sc(C_obs, Z, Q, G, A, H, n, c_max, lamb1, set_root, time_limit=None):
     
     print('Setting objectives for C')
     
-    
-    mod.setObjective(_get_objective_sc(mod, Z, C, C_obs, R, lamb1), gp.GRB.MINIMIZE)    
+    #mod.setObjective(_get_objective_sc(mod, C,C_obs, R, lamb1), gp.GRB.MINIMIZE)  # Nishat: changed for sc.
+    mod.setObjective(_get_objective_sc(mod, Z, C, C_obs, R, lamb1, lamb2), gp.GRB.MINIMIZE)  # Nishat: changed for sc (May 21, 2023).  
     
     
     mod.params.MIPFocus = 1
@@ -268,9 +340,9 @@ def _set_copy_num_constraints(mod, C, n, l, g, r,N,set_root):
         for b in xrange(0, l + g):
             mod.addConstr(C[2 * n - 2, b] >= 0)  # nishat: bp has copy number >=0 at root if dataset has no healthy cell
         for s in xrange(l + g, l + g + 2*r):
-            mod.addConstr(C[2 * n - 2, s] >= 1)  # nishat: seg has copy number >= 2 at root if dataset has no healthy cell 
+            mod.addConstr(C[2 * n - 2, s] >= 1)  # nishat: seg has copy number >= 2 at root if dataset has no healthy cell ### xf: after phasing, both alleles have 1 copy
         
-    
+    # NISHAT: added C[:,:-2r]>=0
     for i in xrange(0, N):
         if i == 2*n-2:
             continue
@@ -279,7 +351,7 @@ def _set_copy_num_constraints(mod, C, n, l, g, r,N,set_root):
 
 
     
-# clone assignment constraints
+# NISHAT: added clone assignment constraints
 def _set_clone_assignment_constraints(mod, Z):
     N_cells, N = Z.shape
     for i in xrange(0,N_cells):
@@ -327,6 +399,9 @@ def _set_cost_constraints(mod, R, C, E, n, l, g, r, c_max):
     X1 = _get_gp_3D_arr_int_var(mod, N, N, r, c_max)
     X2 = _get_gp_3D_arr_int_var(mod, N, N, r, c_max)
 
+    # ==========================================================
+    # NISHAT added: all the segmental copy numbers cannot be 1. (start)
+    # ==========================================================
     # Add 'sum not equal to N*2*r' constraints
     # Auxiliary binary variable
     C_sum_aux1 = mod.addVar(vtype=gp.GRB.BINARY)
@@ -339,20 +414,23 @@ def _set_cost_constraints(mod, R, C, E, n, l, g, r, c_max):
 
     # Either C_sum_aux1 or C_sum_aux2 must be 1
     mod.addConstr(C_sum_aux1 + C_sum_aux2 >= 1)  
+    # ==========================================================
+    # NISHAT added: all the segmental copy numbers cannot be 1. (end)
+    # ==========================================================
     
     for i in xrange(0, N):
         for j in xrange(0, N):  # no cost if no edge exists
             for s in xrange(0, r):  # cost is difference between copy number  ### xf: change the copy numbers
                 mod.addConstr(X1[i, j, s] <= c_max * E[i, j])
-                #mod.addConstr(X1[i, j, s] >= C[i, s + l + g] - C[j, s + l + g] - (c_max) * (1 - E[i, j]))  
-                #mod.addConstr(X1[i, j, s] >= -1 * (C[i, s + l + g] - C[j, s + l + g]) - (c_max) * (1 - E[i, j]))
-                mod.addConstr(X1[i, j, s] >= C[i, s + l + g] - C[j, s + l + g] - (c_max+1) * (1 - E[i, j]))  
-                mod.addConstr(X1[i, j, s] >= -1 * (C[i, s + l + g] - C[j, s + l + g]) - (c_max+1) * (1 - E[i, j]))
+                #mod.addConstr(X1[i, j, s] >= C[i, s + l + g] - C[j, s + l + g] - (c_max) * (1 - E[i, j]))  ## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
+                #mod.addConstr(X1[i, j, s] >= -1 * (C[i, s + l + g] - C[j, s + l + g]) - (c_max) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
+                mod.addConstr(X1[i, j, s] >= C[i, s + l + g] - C[j, s + l + g] - (c_max+1) * (1 - E[i, j]))  ## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
+                mod.addConstr(X1[i, j, s] >= -1 * (C[i, s + l + g] - C[j, s + l + g]) - (c_max+1) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
                 mod.addConstr(X2[i, j, s] <= c_max * E[i, j])
-                #mod.addConstr(X2[i, j, s] >= C[i, s + l + g + r] - C[j, s + l + g + r] - (c_max) * (1 - E[i, j]))
-                #mod.addConstr(X2[i, j, s] >= -1 * (C[i, s + l + g + r] - C[j, s + l + g + r]) - (c_max) * (1 - E[i, j]))
-                mod.addConstr(X2[i, j, s] >= C[i, s + l + g + r] - C[j, s + l + g + r] - (c_max+1) * (1 - E[i, j]))
-                mod.addConstr(X2[i, j, s] >= -1 * (C[i, s + l + g + r] - C[j, s + l + g + r]) - (c_max+1) * (1 - E[i, j]))
+                #mod.addConstr(X2[i, j, s] >= C[i, s + l + g + r] - C[j, s + l + g + r] - (c_max) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
+                #mod.addConstr(X2[i, j, s] >= -1 * (C[i, s + l + g + r] - C[j, s + l + g + r]) - (c_max) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
+                mod.addConstr(X2[i, j, s] >= C[i, s + l + g + r] - C[j, s + l + g + r] - (c_max+1) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
+                mod.addConstr(X2[i, j, s] >= -1 * (C[i, s + l + g + r] - C[j, s + l + g + r]) - (c_max+1) * (1 - E[i, j]))## NISHAT: changed (c_max + 1) * (1 - E[i, j]) to (c_max) * (1 - E[i, j]) according to tusv-ext equation 8,9,11,12
             mod.addConstr(R[i, j] == (gp.quicksum(X1[i, j, :]) + gp.quicksum(X2[i, j, :])))
     
 
@@ -386,7 +464,7 @@ def _set_bp_gain_and_loss_constraints(mod, C_bin, C, W, E, G, n, l, g, Gam, c_ma
                 
 ### xf: _set_ancestry_condition_constraints removed 
 
-def _set_segment_copy_num_constraints(mod, Gam, C, Q, W, n, l, g, r, D, c_max):                        
+def _set_segment_copy_num_constraints(mod, Gam, C, Q, W, n, l, g, r, D, c_max):                        # Nishat: removed m from def _set_segment_copy_num_constraints(mod, Gam, C, Q, W, m, n, l, g, r, D, c_max):
     N = 2 * n - 1
     for k in xrange(0, N):
         for b in xrange(0, l+g):  # define copy num of segment containing breakpoint
@@ -413,7 +491,27 @@ def _set_bpf_penalty(mod, S, Pi, U, C, Gam):
 #   OBJECTIVE   #
 # # # # # # # # #
 
-def _get_objective_sc(mod, Z,C,C_obs, R,lamb1):  # Nishat: Added this funtion for single cell (May 21, 2023)
+def _get_objective(mod, F_phasing, U, C, R, S, lamb1, lamb2):  # returns expression for objective
+    m, L = F_phasing.shape
+    N, _ = C.shape
+    _, l = S.shape
+    sums = []
+    #print(C.shape,C[0][0], U.shape,m,L)
+    
+    for p in xrange(0, m):
+        for s in xrange(0, L):
+            f_hat = gp.quicksum([U[p, k] * C[k, s] for k in xrange(0, N)])   # Nishat: supplementary, equation 27
+            sums.append(_get_abs(mod, F_phasing[p, s] - f_hat))              # Nishat: supplementary equation 29
+    for i in xrange(0, N):
+        for j in xrange(0, N):
+            sums.append(lamb1 * R[i, j])
+    for p in xrange(0, m):
+        for b in xrange(0, l):
+            sums.append(lamb2 * S[p, b])
+    mod.update()
+    return gp.quicksum(sums)
+
+def _get_objective_sc(mod, Z,C,C_obs, R,lamb1, lamb2):  # Nishat: Added this funtion for single cell (May 21, 2023)
     sums = []
     N_cells, N = Z.shape # N_cells: number of cells, N: Number of clones. 
     m = C.shape[1]

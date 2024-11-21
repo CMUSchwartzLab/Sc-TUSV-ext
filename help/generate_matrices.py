@@ -1,8 +1,8 @@
 # Input: 
 #       -d: sample.vcf in a patient folder
-# Author: Jingyi Wang
+# Author: Jingyi Wang, Nishat Bristy
 # Created date: 2017_09_25
-# Modified date: 2017_10_02
+# Modified date: 2024_09_02
 
 ##################
 ##### IMPORT #####
@@ -19,14 +19,91 @@ import pandas as pd
 import shutil
 
 # custom imports
+
+sys.path.insert(0, '../')
 import file_manager as fm
+import cluster_l1 as cl
 
 #####################
 ##### FUNCTIONS #####
 #####################
 
+def check_lg_columns(group_data, percentage, l_g):
+    """
+    For the first l_g columns, set mode value to 1 if at least a% of the rows have values > 0.
 
-def compute_F_mode(F, sampleList, df_clones):
+    Parameters:
+    - group_data (np.array): Subset of F corresponding to the clones.
+    - a (float): Percentage threshold.
+    - l_g (int): Number of sv + snv columns.
+
+    Returns:
+    - np.array: Updated mode values for the first l+g columns.
+    """
+    num_rows = group_data.shape[0]
+    
+    threshold = np.round((percentage * num_rows) / (1.0*100))
+    lg_mode_values = np.zeros(l_g)
+    #print(num_rows, threshold, lg_mode_values)
+    for i in range(l_g):
+        non_zero_count = np.count_nonzero(group_data[:, i] > 0)
+    #    print(non_zero_count)
+        if non_zero_count >= threshold:
+            lg_mode_values[i] = 1
+
+    return lg_mode_values
+
+def compute_F_mode(F, sampleList, df_clones, l_g, r, percentage):
+    """
+    Computes a matrix where each row is the mode of the rows in F that belong to the same clone.
+    The mode is computed column-wise, with custom logic for the first l_g columns, 
+    and the average (rounded) for the last 2r columns.
+
+    Parameters:
+    - F (np.array): Original matrix with rows corresponding to samples.
+    - sampleList (list): List of sample names corresponding to rows in F.
+    - df_clones (pd.DataFrame): Mapping of each sample to its corresponding clone.
+    - l_g (int): Number of columns that have custom logic for mode calculation.
+    - r (int): Parameter determining the last 2r columns where the average is applied.
+    - a (float): Percentage threshold for the first l_g columns.
+
+    Returns:
+    - F_mode (np.array): Matrix with modes computed for each clone.
+    """
+    
+    F = np.array(F).astype(int)
+    sample_to_index = {name.split('.')[0]: idx for idx, name in enumerate(sampleList)}
+    
+    grouped_samples = df_clones.groupby('cluster')['Cells'].apply(list).to_dict()
+    
+    sorted_clones = sorted(grouped_samples.keys())
+    # Computing the snv (= 1 if number of cells with snv > threshold% of cells) 
+    # and avg cna for each clone. 
+    modes = []
+    for clone in sorted_clones:
+        samples = grouped_samples[clone]
+        indices = [sample_to_index[sample] for sample in samples]
+        group_data = F[indices, :]
+        
+        if group_data.shape[0] > 0:
+            lg_mode_values = check_lg_columns(group_data, percentage, l_g)
+        else:
+            lg_mode_values = np.zeros(l_g)
+        
+        if group_data.shape[0] > 0:
+            last_2r_data = group_data[:, l_g:l_g+2*r]
+            last_2r_avg_values = np.round(np.mean(last_2r_data, axis=0))
+        else:
+            last_2r_avg_values = np.zeros(2*r)
+        
+        mode_values = np.concatenate([lg_mode_values, last_2r_avg_values])
+        modes.append(mode_values)
+    
+    F_mode = np.array(modes)
+    return F_mode
+
+# before using coverage threshold for snvs and svs
+def compute_F_mode_before_sept_25_2024(F, sampleList, df_clones):
     """
     Computes a matrix where each row is the mode of the rows in F that belong to the same clone.
     The mode is computed column-wise.
@@ -41,23 +118,16 @@ def compute_F_mode(F, sampleList, df_clones):
     """
     
     F = np.array(F).astype(int)
-    # Create a mapping from sample name to its index in sampleList
     sample_to_index = {name.split('.')[0]: idx for idx, name in enumerate(sampleList)}
     
-    # Group the samples by clone
     grouped_samples = df_clones.groupby('cluster')['Cells'].apply(list).to_dict()
     
-    # Sorting the clones for consistent ordering
     sorted_clones = sorted(grouped_samples.keys())
-    # Compute the mode for each clone
     modes = []
     for clone in sorted_clones:
         samples = grouped_samples[clone]
-        # Get indices of the samples in the group
         indices = [sample_to_index[sample] for sample in samples]
-        # Extract rows corresponding to these indices from F
         group_data = F[indices, :]
-        # Compute the mode column-wise
         mode_values = np.apply_along_axis(lambda x: np.bincount(x).argmax(), axis=0, arr=group_data)
         modes.append(mode_values)
     
@@ -75,17 +145,9 @@ def add_clone(in_dir,df_clones): # adding a normal clone if number of clones is 
 #  input: in_dir (str) full path to input directory containing .vcf file(s)
 # output: bp_attr (dict) key is breakpoint index. val is tuple (chrm (str), pos (int), extends_left (bool))
 #         cv_attr (dict) key (int) is segment index. val is tuple (chrm (str), bgn_pos (int), end_pos (int))
-def get_mats(in_dir,c2cl, n, const=120, sv_ub=80):
-    df_clones = pd.read_csv(c2cl,sep='\t') # NISHAT: added for averaging cell muts according to cell clusters.
-    #m = (len(list(df_clones['cluster'].unique())) + 1)/2 # NISHAT added
-    # Nishat added
+def get_mats(in_dir, c2cl,  out_dir, n, percentage, const=120, sv_ub=80):
     
-    if len(list(df_clones['cluster'].unique())) %2==0:
-        df_clones, n = add_clone(in_dir,df_clones)
-    else:
-        n = (len(list(df_clones['cluster'].unique())) + 1)/2 
     sampleList = fm._fnames_with_extension(in_dir, '.vcf')
-    
     m = len(sampleList)  
     sampleList.sort()
     
@@ -95,12 +157,14 @@ def get_mats(in_dir,c2cl, n, const=120, sv_ub=80):
 
     BP_sample_dict, CN_sample_dict, CN_sample_rec_dict, CN_sample_rec_dict_minor, CN_sample_rec_dict_major = dict(), dict(), dict(), dict(), dict()
     SNV_sample_dict = {}
+
     for i, sample in enumerate(sampleList):
         input_vcf_file = in_dir + '/' + sample
         reader = vcf.Reader(open(input_vcf_file, 'r'))
+        
+        
+        
         BP_sample_dict[sample], CN_sample_dict[sample], CN_sample_rec_dict[sample], CN_sample_rec_dict_minor[sample], CN_sample_rec_dict_major[sample], mateIDs, toTuple, SNV_sample_dict[sample] = get_sample_dict(reader)
-        # prepend sample index to each breakpoint ID
-        #print(sample, (BP_sample_dict[sample].items()))
         for k, v in mateIDs.iteritems():
             bp_id_to_mate_id[str(i+1) + k] = str(i+1) + v # add all entries from mateIDs (dict) to bp_id_to_mate_id (dict)
             bp_id_to_tuple[str(i+1) + k] = toTuple[k]     # add all entries from toTuple (dict) to bp_id_to_tuple (dict)
@@ -108,12 +172,11 @@ def get_mats(in_dir,c2cl, n, const=120, sv_ub=80):
     BP_idx_dict, l = get_BP_idx_dict(BP_sample_dict)
     G = make_G(BP_idx_dict, bp_id_to_mate_id, bp_id_to_tuple)
     CN_startPos_dict, CN_endPos_dict, r = get_CN_indices_dict(CN_sample_dict)
-    #print(CN_startPos_dict, CN_endPos_dict)
     SNV_idx_dict, g = get_snv_idx_dict(SNV_sample_dict)
     
     F_phasing, F_unsampled_phasing, G, G_unsampled, Q, Q_unsampled, A, H, cv_attr, F_info_phasing, F_unsampled_info_phasing, sampled_snv_list_sort, \
     unsampled_snv_list_sort, sampled_sv_list_sort, unsampled_sv_list_sort \
-        = make_matrices(m, n, l, g, r, G, sampleList, df_clones, BP_sample_dict, BP_idx_dict, SNV_sample_dict, SNV_idx_dict, CN_sample_rec_dict, CN_sample_rec_dict_minor, CN_sample_rec_dict_major, CN_startPos_dict, CN_endPos_dict, const=const, sv_ub=sv_ub)
+        = make_matrices(m, n, l, g, r, G, sampleList, BP_sample_dict, BP_idx_dict, SNV_sample_dict, SNV_idx_dict, CN_sample_rec_dict, CN_sample_rec_dict_minor, CN_sample_rec_dict_major, CN_startPos_dict, CN_endPos_dict, percentage, const=const, sv_ub=sv_ub)
     
     
     bp_attr = _inv_dic(BP_idx_dict)
@@ -169,17 +232,39 @@ def get_mats(in_dir,c2cl, n, const=120, sv_ub=80):
     
     l_g, r = Q.shape
     l, _ = G.shape
+    
     g = l_g - l
     A = A[0:2*n-1, 0:l] #empty matrix # NISHAT changed A = A[0:m, 0:l] 
     H = H[0:2*n-1, 0:l] # NISHAT changed H = H[0:m, 0:l] 
     
-    F_phasing = compute_F_mode(F_phasing, sampleList, df_clones)
+    
+    
+    C_input_full = F_phasing
+    
+    if c2cl is not None: # using provided c2cl file (clustering is known).
+        df_clones = pd.read_csv(c2cl,sep='\t') 
+    else: # creating clusters 
+        # KMEANS CLUSTERING WITH L1 DISTANCE 
+        distances = cl.compute_l1_distances(C_input_full)
+        pred_labels = cl.compute_k_means(distances, 2*n-1) # n = number of leaves from input params, 2n-1 = number of nodes
+        cl.save_clusters_file_sctusv(pred_labels, sampleList,out_dir) 
+        
+        df_clones = pd.read_csv(out_dir+"/pred_kmeans_clusters.tsv",sep='\t') 
+    
+    #m = (len(list(df_clones['cluster'].unique())) + 1)/2 # NISHAT added
+    
+    if len(list(df_clones['cluster'].unique())) %2==0:
+        df_clones, n = add_clone(in_dir,df_clones)
+    else:
+        n = (len(list(df_clones['cluster'].unique())) + 1)/2 
+    
+    F_phasing = compute_F_mode(F_phasing, sampleList, df_clones,l_g, r, percentage)
     #if not (isinstance(F_unsampled_phasing, float) and np.isnan(F_unsampled_phasing)):
     #    F_unsampled_phasing = compute_F_mode(F_unsampled_phasing, sampleList, df_clones)
     
     
     
-    return n, m, F_phasing, F_unsampled_phasing, Q, Q_unsampled, G, G_unsampled, A, H, bp_attr, cv_attr, F_info_phasing, F_unsampled_info_phasing, sampled_snv_list_sort, unsampled_snv_list_sort, sampled_sv_list_sort, unsampled_sv_list_sort, df_clones
+    return n, m, F_phasing, F_unsampled_phasing,C_input_full, Q, Q_unsampled, G, G_unsampled, A, H, bp_attr, cv_attr, F_info_phasing, F_unsampled_info_phasing, sampled_snv_list_sort, unsampled_snv_list_sort, sampled_sv_list_sort, unsampled_sv_list_sort, df_clones
 
 
 #  input: bp_id_to_mate_id
@@ -215,8 +300,8 @@ def make_3d_list(r,c,d):
     return result
 
 # output: cv_attr (dict) key (int) is segment index. val is tuple (chrm (str), bgn_pos (int), end_pos (int))
-def make_matrices(m, n, l, g, r, G, sampleList, df_clones, BP_sample_dict, BP_idx_dict,  SNV_sample_dict, SNV_idx_dict, CN_sample_rec_dict, \
-                  CN_sample_rec_dict_minor, CN_sample_rec_dict_major, CN_startPos_dict, CN_endPos_dict, const=120, sv_ub=80):
+def make_matrices(m, n, l, g, r, G, sampleList, BP_sample_dict, BP_idx_dict,  SNV_sample_dict, SNV_idx_dict, CN_sample_rec_dict, \
+                  CN_sample_rec_dict_minor, CN_sample_rec_dict_major, CN_startPos_dict, CN_endPos_dict, percentage, const=120, sv_ub=80):
 
     if sv_ub < 0:
         sampled_sv_idx_list_sorted = np.arange(len(BP_idx_dict))
@@ -401,7 +486,10 @@ def make_matrices(m, n, l, g, r, G, sampleList, df_clones, BP_sample_dict, BP_id
                     unsampled_sv_idx_list_sorted.append(i)
             sampled_sv_idx_list_sorted = np.array(sampled_sv_idx_list_sorted)
             unsampled_sv_idx_list_sorted = np.array(unsampled_sv_idx_list_sorted)
-            G_sampled = G[sampled_sv_idx_list_sorted,:][:, sampled_sv_idx_list_sorted]
+            if len(sampled_sv_idx_list_sorted) !=0: # Nishat updated Jan 25
+                G_sampled = G[sampled_sv_idx_list_sorted,:][:, sampled_sv_idx_list_sorted]
+            else:
+                G_sampled=np.empty((0,0))
             G_unsampled = G[unsampled_sv_idx_list_sorted,:][:, unsampled_sv_idx_list_sorted]
             sampled_snv_idx_list_sorted = []
             sampled_list = np.random.choice(a=len(SNV_idx_dict), size=const - len(sampled_sv_idx_list_sorted), replace=False)
@@ -687,6 +775,7 @@ def get_sample_dict(reader):
     count = 0
     bp_id_set = set()
     for rec in reader:
+        
         if is_sv_record(rec):
             count += 1
             #print(rec)
