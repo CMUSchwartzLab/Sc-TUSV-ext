@@ -72,4 +72,4 @@ Optional parameters:
 - `-l` : lambda regularization parameter for weighting the phylogenetic cost
 - `-p` : number of processors to use (uses all the available cores by default)
 - `-s` : number of segments (in addition to those containing breakpoints) that are randomly kept (default keeps all the segments)
-- `-c2cl` : clone assignment file (this file can be provided if cell-clone assignments are already known). A `.tsv` file with column names: `'Cells'` and `'cluster'`. 
+- `-c2cl` : clone assignment file (this file can be provided if cell-clone assignments are already known). A `.tsv` file with column names: `'Cells'` and `'cluster'`, similar to the `pred_kmeans_clusters.tsv` file in `example/sample_output`. 
