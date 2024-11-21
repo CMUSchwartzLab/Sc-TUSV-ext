@@ -66,9 +66,9 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, lamb2, num_restarts, num_cd_it
     
     df_clones.to_csv(out_dir+'clones.tsv',index=None,sep='\t')
     np.savetxt(out_dir+"/C_input_full.csv",C_input_full, delimiter='\t', fmt='%s')
-    np.savetxt(out_dir + "/F_info_phasing.csv", F_info_phasing, delimiter='\t', fmt='%s')
+    np.savetxt(out_dir + "/C_info_phasing.csv", F_info_phasing, delimiter='\t', fmt='%s')
     if F_unsampled_info_phasing.size != 1:#all() != None: # NISHAT ADDED
-        np.savetxt(out_dir + "/F_unsampled_info_phasing.csv", F_unsampled_info_phasing, delimiter='\t', fmt='%s')
+        np.savetxt(out_dir + "/C_unsampled_info_phasing.csv", F_unsampled_info_phasing, delimiter='\t', fmt='%s')
     np.savetxt(out_dir + "/sampled_snv_list_sort.csv", sampled_snv_list_sort, delimiter='\t', fmt='%d')
     np.savetxt(out_dir + "/unsampled_snv_list_sort.csv", unsampled_snv_list_sort, delimiter='\t', fmt='%d')
     np.savetxt(out_dir + "/sampled_sv_list_sort.csv", sampled_sv_list_sort, delimiter='\t', fmt='%d')
@@ -79,9 +79,9 @@ def unmix(in_dir, out_dir, c2cl, n, c_max, lamb1, lamb2, num_restarts, num_cd_it
         F_phasing, Q, Q_unsampled, org_indxs = randomly_remove_segments(F_phasing_full, Q_full, Q_unsampled_full, num_seg_subsamples)
     else:
         F_phasing, Q, Q_unsampled, org_indxs = F_phasing_full, Q_full, None, None
-    np.savetxt(out_dir + '/F_phasing.tsv', F_phasing, delimiter='\t', fmt='%.8f')
+    np.savetxt(out_dir + '/C_phasing.tsv', F_phasing, delimiter='\t', fmt='%.8f')
     if not np.isnan(F_unsampled_phasing_full).any(): # NISHAT ADDED
-        np.savetxt(out_dir + '/F_unsampled_phasing_full.tsv', F_unsampled_phasing_full, delimiter='\t', fmt='%.8f')
+        np.savetxt(out_dir + '/C_unsampled_phasing_full.tsv', F_unsampled_phasing_full, delimiter='\t', fmt='%.8f')
     # replace lambda1 and lambda2 with input derived values if should_orveride_lamdas was specified
     m = len(F_phasing)
     l_g, r = Q.shape
@@ -611,8 +611,8 @@ def write_to_files(d, l_g, C, E, R, Z, W, W_SV, W_SNV, W_SNV_UNSAMPLED, W_con, o
     else:
         C_out = C
 
-    #fnames = [ d + fname for fname in ['U.tsv', 'C.tsv', 'T.dot', 'F.tsv',  'W.tsv', 'obj_val.txt', 'unmixed.vcf', 'unmixed.xml','F_phasing_full.tsv','F_unsampled_phasing_full.tsv', 'W_SV.tsv', 'W_SNV_sampled.tsv', 'W_SNV_unsampled.tsv', 'W_CONCATENATE.tsv', 'T_pre.dot', 'B.tsv', 'A.tsv'] ]  # NISHAT: Removed for adding Z.
-    fnames = [ d + fname for fname in ['Z.tsv', 'C.tsv', 'T.dot', 'F.tsv',  'W.tsv', 'obj_val.txt', 'unmixed.vcf', 'unmixed.xml','F_phasing_full.tsv','F_unsampled_phasing_full.tsv', 'W_SV.tsv', 'W_SNV_sampled.tsv', 'W_SNV_unsampled.tsv', 'W_CONCATENATE.tsv', 'T_pre.dot', 'B.tsv', 'A.tsv','nodes_collapsed.txt'] ]
+    #fnames = [ d + fname for fname in ['U.tsv', 'C.tsv', 'T.dot', 'F.tsv',  'W.tsv', 'obj_val.txt', 'unmixed.vcf', 'unmixed.xml','C_phasing_full.tsv','C_unsampled_phasing_full.tsv', 'W_SV.tsv', 'W_SNV_sampled.tsv', 'W_SNV_unsampled.tsv', 'W_CONCATENATE.tsv', 'T_pre.dot', 'B.tsv', 'A.tsv'] ]  # NISHAT: Removed for adding Z.
+    fnames = [ d + fname for fname in ['Z.tsv', 'C.tsv', 'T.dot', 'F.tsv',  'W.tsv', 'obj_val.txt', 'unmixed.vcf', 'unmixed.xml','C_phasing_full.tsv','C_unsampled_phasing_full.tsv', 'W_SV.tsv', 'W_SNV_sampled.tsv', 'W_SNV_unsampled.tsv', 'W_CONCATENATE.tsv', 'T_pre.dot', 'B.tsv', 'A.tsv','nodes_collapsed.txt'] ]
     for fname in fnames:
         fm.touch(fname)
     #np.savetxt(fnames[0], U, delimiter = '\t', fmt = '%.8f') # NISHAT: removed for adding Z.
